@@ -1,0 +1,22 @@
+<idea-plugin>
+    <id>io.locklane.plugin</id>
+    <name>Locklane</name>
+    <vendor email="mmesasro@gmail.com" url="https://github.com/marzmesas">Locklane</vendor>
+
+    <description><![CDATA[
+        <p>Locklane plans safe Python dependency updates for requirements files with conflict-aware guidance.</p>
+        <p>Phase 1 bootstrap: tool window scaffold and resolver integration skeleton.</p>
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow
+                id="Locklane"
+                anchor="right"
+                factoryClass="io.locklane.LocklaneToolWindowFactory"
+                canCloseContents="false"
+                icon="/icons/locklaneToolWindow.svg"/>
+    </extensions>
+</idea-plugin>
+
