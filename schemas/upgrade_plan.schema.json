@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://locklane.dev/schemas/upgrade_plan.schema.json",
+  "title": "UpgradePlan",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "timestamp_utc",
+    "status",
+    "safe_updates",
+    "blocked_updates",
+    "ordered_steps"
+  ],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "timestamp_utc": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "error"]
+    },
+    "safe_updates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["package", "from_version", "to_version"],
+        "properties": {
+          "package": { "type": "string" },
+          "from_version": { "type": "string" },
+          "to_version": { "type": "string" }
+        }
+      }
+    },
+    "blocked_updates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["package", "target_version", "reason"],
+        "properties": {
+          "package": { "type": "string" },
+          "target_version": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "ordered_steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["step", "description"],
+        "properties": {
+          "step": { "type": "integer", "minimum": 1 },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "required": ["passed"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "summary": { "type": "string" }
+      }
+    }
+  }
+}
+

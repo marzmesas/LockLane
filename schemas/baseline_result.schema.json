@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://locklane.dev/schemas/baseline_result.schema.json",
+  "title": "BaselineResult",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "timestamp_utc",
+    "resolver",
+    "status",
+    "manifest_path",
+    "dependencies",
+    "tooling"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string"
+    },
+    "timestamp_utc": {
+      "type": "string"
+    },
+    "resolver": {
+      "type": "string",
+      "enum": ["uv", "pip-tools"]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "error"]
+    },
+    "manifest_path": {
+      "type": "string"
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "specifier", "raw_line", "line_number"],
+        "properties": {
+          "name": { "type": "string" },
+          "specifier": { "type": "string" },
+          "raw_line": { "type": "string" },
+          "line_number": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "tooling": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["available", "binary"],
+        "properties": {
+          "available": { "type": "boolean" },
+          "binary": { "type": "string" }
+        }
+      }
+    }
+  }
+}
+

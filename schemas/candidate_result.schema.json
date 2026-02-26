@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://locklane.dev/schemas/candidate_result.schema.json",
+  "title": "CandidateResult",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "timestamp_utc",
+    "resolver",
+    "status",
+    "manifest_path",
+    "candidate",
+    "result",
+    "explanation"
+  ],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "timestamp_utc": { "type": "string" },
+    "resolver": {
+      "type": "string",
+      "enum": ["uv", "pip-tools"]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "error"]
+    },
+    "manifest_path": { "type": "string" },
+    "candidate": {
+      "type": "object",
+      "required": ["package", "target_version"],
+      "properties": {
+        "package": { "type": "string" },
+        "target_version": { "type": "string" }
+      }
+    },
+    "result": {
+      "type": "string",
+      "enum": ["SAFE_NOW", "BLOCKED", "INCONCLUSIVE"]
+    },
+    "explanation": {
+      "type": "string"
+    }
+  }
+}
+

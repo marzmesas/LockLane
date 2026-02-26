@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://locklane.dev/schemas/verification_report.schema.json",
+  "title": "VerificationReport",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "timestamp_utc",
+    "resolver",
+    "status",
+    "manifest_path",
+    "verification"
+  ],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "timestamp_utc": { "type": "string" },
+    "resolver": {
+      "type": "string",
+      "enum": ["uv", "pip-tools"]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "error"]
+    },
+    "manifest_path": { "type": "string" },
+    "verification": {
+      "type": "object",
+      "required": ["command", "passed", "exit_code", "stdout", "stderr"],
+      "properties": {
+        "command": { "type": "string" },
+        "passed": { "type": "boolean" },
+        "exit_code": { "type": "integer" },
+        "stdout": { "type": "string" },
+        "stderr": { "type": "string" }
+      }
+    }
+  }
+}
+
