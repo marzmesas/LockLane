@@ -10,10 +10,10 @@ build/
 out/
 .idea/
 *.iml
+.intellijPlatform/
 
 # OS
 .DS_Store
 
 # Logs
 *.log
-
