@@ -11,10 +11,18 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .cache import compute_cache_key
+from .cache import load_cached
+from .cache import save_to_cache
+from .graph import parse_resolver_output
+from .models import DependencyGraph
 from .models import ParsedDependency
+from .models import ResolverError
 from .models import SCHEMA_VERSION
 from .models import ToolAvailability
 from .models import now_utc_iso
+from .resolver import _detect_python_version
+from .resolver import resolve
 
 SUPPORTED_RESOLVERS = {"uv": "uv", "pip-tools": "pip-compile"}
 
@@ -81,11 +89,18 @@ def write_json(payload: dict[str, Any], json_out: Path | None) -> None:
     print(encoded)
 
 
-def baseline(manifest: Path, resolver: str) -> dict[str, Any]:
-    """Produce baseline parse and tooling metadata."""
+def baseline(
+    manifest: Path,
+    resolver: str,
+    *,
+    python_path: str | None = None,
+    no_cache: bool = False,
+    no_resolve: bool = False,
+) -> dict[str, Any]:
+    """Produce baseline parse, resolution graph, and tooling metadata."""
     dependencies = parse_requirements(manifest)
 
-    return {
+    payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "timestamp_utc": now_utc_iso(),
         "resolver": resolver,
@@ -93,7 +108,56 @@ def baseline(manifest: Path, resolver: str) -> dict[str, Any]:
         "manifest_path": str(manifest),
         "dependencies": [dep.to_dict() for dep in dependencies],
         "tooling": tooling_availability(),
+        "resolution": None,
+        "cache_key": None,
     }
+
+    if no_resolve:
+        return payload
+
+    # Check cache
+    cache_key = None
+    if not no_cache:
+        try:
+            cache_key = compute_cache_key(manifest, python_path)
+            cached = load_cached(cache_key)
+            if cached is not None:
+                return cached
+        except Exception:
+            pass  # Cache miss or error — proceed with resolution
+
+    # Run resolver
+    try:
+        direct_names = {dep.name for dep in dependencies}
+        raw_output, tool_name, tool_version = resolve(manifest, preferred=resolver, python_path=python_path)
+
+        py_version = _detect_python_version(python_path or sys.executable)
+
+        packages = parse_resolver_output(raw_output, direct_names)
+        graph = DependencyGraph(
+            packages=packages,
+            resolver_tool=tool_name,
+            resolver_version=tool_version,
+            python_version=py_version,
+            raw_output=raw_output,
+        )
+
+        payload["resolution"] = graph.to_dict()
+        if cache_key is not None:
+            payload["cache_key"] = cache_key.to_dict()
+
+        # Save to cache
+        if not no_cache and cache_key is not None:
+            try:
+                save_to_cache(cache_key, payload)
+            except Exception:
+                pass  # Cache write failure is non-fatal
+
+    except ResolverError as exc:
+        payload["status"] = "error"
+        payload["error"] = str(exc)
+
+    return payload
 
 
 def simulate(manifest: Path, resolver: str, package: str, target_version: str) -> dict[str, Any]:
@@ -173,6 +237,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     baseline_parser = subparsers.add_parser("baseline", help="Generate baseline dependency view")
     add_common(baseline_parser)
+    baseline_parser.add_argument("--python", type=str, default=None, help="Path to Python interpreter for resolution")
+    baseline_parser.add_argument("--no-cache", action="store_true", help="Skip cache lookup and storage")
+    baseline_parser.add_argument("--no-resolve", action="store_true", help="Parse-only mode — skip resolver invocation")
 
     simulate_parser = subparsers.add_parser("simulate", help="Simulate one candidate update")
     add_common(simulate_parser)
@@ -200,7 +267,13 @@ def main(argv: list[str] | None = None) -> int:
 
     payload: dict[str, Any]
     if args.command == "baseline":
-        payload = baseline(args.manifest, args.resolver)
+        payload = baseline(
+            args.manifest,
+            args.resolver,
+            python_path=args.python,
+            no_cache=args.no_cache,
+            no_resolve=args.no_resolve,
+        )
     elif args.command == "simulate":
         payload = simulate(args.manifest, args.resolver, args.package, args.target_version)
     else:
