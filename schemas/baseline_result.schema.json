@@ -53,7 +53,53 @@
           "binary": { "type": "string" }
         }
       }
+    },
+    "resolution": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["packages", "resolver_tool", "resolver_version", "python_version"],
+          "properties": {
+            "packages": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "version", "is_direct", "required_by"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "version": { "type": "string" },
+                  "is_direct": { "type": "boolean" },
+                  "required_by": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                }
+              }
+            },
+            "resolver_tool": { "type": "string" },
+            "resolver_version": { "type": "string" },
+            "python_version": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "cache_key": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["interpreter_path", "python_version", "manifest_sha256"],
+          "properties": {
+            "interpreter_path": { "type": "string" },
+            "python_version": { "type": "string" },
+            "manifest_sha256": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "error": {
+      "type": "string"
     }
   }
 }
-
