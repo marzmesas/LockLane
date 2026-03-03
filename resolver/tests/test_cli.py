@@ -6,8 +6,10 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from locklane_resolver import cli
+from locklane_resolver.models import ResolverError
 
 
 class ResolverCliTests(unittest.TestCase):
@@ -36,7 +38,7 @@ class ResolverCliTests(unittest.TestCase):
             manifest = Path(tmp) / "requirements.txt"
             manifest.write_text("requests==2.31.0\n", encoding="utf-8")
 
-            payload = cli.baseline(manifest, "uv")
+            payload = cli.baseline(manifest, "uv", no_resolve=True)
             self.assertEqual(payload["status"], "ok")
             self.assertEqual(payload["resolver"], "uv")
             self.assertEqual(payload["dependencies"][0]["name"], "requests")
@@ -71,6 +73,7 @@ class ResolverCliTests(unittest.TestCase):
                     str(manifest),
                     "--resolver",
                     "uv",
+                    "--no-resolve",
                     "--json-out",
                     str(out_file),
                 ]
@@ -78,6 +81,98 @@ class ResolverCliTests(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             payload = json.loads(out_file.read_text(encoding="utf-8"))
             self.assertEqual(payload["status"], "ok")
+
+
+class BaselineNoResolveTests(unittest.TestCase):
+    """--no-resolve flag produces parse-only output."""
+
+    def test_baseline_with_no_resolve_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "requirements.txt"
+            manifest.write_text("requests==2.31.0\nclick==8.1.7\n", encoding="utf-8")
+
+            payload = cli.baseline(manifest, "uv", no_resolve=True)
+            self.assertEqual(payload["status"], "ok")
+            self.assertIsNone(payload["resolution"])
+            self.assertIsNone(payload["cache_key"])
+            self.assertEqual(len(payload["dependencies"]), 2)
+
+
+class BaselineWithResolutionTests(unittest.TestCase):
+    """Integration tests with mocked resolver."""
+
+    @mock.patch("locklane_resolver.cli._detect_python_version", return_value="3.12.1")
+    @mock.patch("locklane_resolver.cli.resolve")
+    def test_baseline_with_resolution(self, mock_resolve: mock.Mock, mock_pyver: mock.Mock) -> None:
+        mock_resolve.return_value = (
+            "click==8.1.7\n    # via\n    #   -r requirements.txt\ncolorama==0.4.6\n    # via click\n",
+            "uv",
+            "uv 0.5.0",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "requirements.txt"
+            manifest.write_text("click==8.1.7\n", encoding="utf-8")
+
+            payload = cli.baseline(manifest, "uv", no_cache=True)
+            self.assertEqual(payload["status"], "ok")
+            self.assertIsNotNone(payload["resolution"])
+            packages = payload["resolution"]["packages"]
+            self.assertTrue(len(packages) >= 1)
+
+            click_pkg = next(p for p in packages if p["name"] == "click")
+            self.assertTrue(click_pkg["is_direct"])
+
+    @mock.patch("locklane_resolver.cli.resolve", side_effect=ResolverError("all tools failed"))
+    def test_baseline_resolver_error(self, mock_resolve: mock.Mock) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "requirements.txt"
+            manifest.write_text("click==8.1.7\n", encoding="utf-8")
+
+            payload = cli.baseline(manifest, "uv", no_cache=True)
+            self.assertEqual(payload["status"], "error")
+            self.assertIn("all tools failed", payload["error"])
+
+
+class BaselineCachingTests(unittest.TestCase):
+    """Cache round-trip via baseline."""
+
+    @mock.patch("locklane_resolver.cli._detect_python_version", return_value="3.12.1")
+    @mock.patch("locklane_resolver.cli.resolve")
+    @mock.patch("locklane_resolver.cli.compute_cache_key")
+    @mock.patch("locklane_resolver.cli.load_cached")
+    @mock.patch("locklane_resolver.cli.save_to_cache")
+    def test_baseline_caching_round_trip(
+        self,
+        mock_save: mock.Mock,
+        mock_load: mock.Mock,
+        mock_key: mock.Mock,
+        mock_resolve: mock.Mock,
+        mock_pyver: mock.Mock,
+    ) -> None:
+        from locklane_resolver.models import CacheKey
+
+        fake_key = CacheKey("/usr/bin/python3", "3.12.1", "abc123")
+        mock_key.return_value = fake_key
+        mock_load.return_value = None  # Cache miss
+        mock_resolve.return_value = (
+            "click==8.1.7\n    # via -r requirements.txt\n",
+            "uv",
+            "uv 0.5.0",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "requirements.txt"
+            manifest.write_text("click==8.1.7\n", encoding="utf-8")
+
+            payload = cli.baseline(manifest, "uv")
+            self.assertEqual(payload["status"], "ok")
+            mock_save.assert_called_once()
+
+            # Simulate cache hit
+            mock_load.return_value = payload
+            cached_payload = cli.baseline(manifest, "uv")
+            self.assertEqual(cached_payload, payload)
 
 
 if __name__ == "__main__":
