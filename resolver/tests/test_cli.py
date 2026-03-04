@@ -241,6 +241,85 @@ class SimulatePhase3Tests(unittest.TestCase):
         self.assertEqual(args.timeout, 60)
 
 
+class PlanPhase4Tests(unittest.TestCase):
+    """Phase-4 plan command tests."""
+
+    @mock.patch("locklane_resolver.cli.compose_upgrade_plan")
+    def test_plan_command_safe_and_blocked(self, mock_plan: mock.Mock) -> None:
+        mock_plan.return_value = {
+            "manifest_path": "/tmp/requirements.txt",
+            "resolver": "uv",
+            "safe_updates": [
+                {"package": "click", "from_version": "8.1.7", "to_version": "8.1.8"},
+            ],
+            "blocked_updates": [
+                {"package": "requests", "target_version": "2.31.1", "reason": "conflict"},
+            ],
+            "inconclusive_updates": [
+                {"package": "httpx", "target_version": "0.28.1", "reason": "version missing"},
+            ],
+            "ordered_steps": [
+                {"step": 1, "description": "Apply all 1 safe updates: click 8.1.7->8.1.8"},
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "requirements.txt"
+            manifest.write_text("click==8.1.7\nrequests==2.31.0\nhttpx==0.28.0\n", encoding="utf-8")
+
+            payload = cli.plan(manifest, "uv")
+
+            self.assertEqual(payload["status"], "ok")
+            self.assertIn("schema_version", payload)
+            self.assertIn("timestamp_utc", payload)
+            self.assertEqual(len(payload["safe_updates"]), 1)
+            self.assertEqual(len(payload["blocked_updates"]), 1)
+            self.assertEqual(len(payload["inconclusive_updates"]), 1)
+            self.assertEqual(len(payload["ordered_steps"]), 1)
+
+    def test_plan_cli_accepts_python_and_timeout_args(self) -> None:
+        parser = cli.build_parser()
+        args = parser.parse_args([
+            "plan",
+            "--manifest", "/tmp/test.txt",
+            "--python", "/usr/bin/python3",
+            "--timeout", "60",
+        ])
+        self.assertEqual(args.python, "/usr/bin/python3")
+        self.assertEqual(args.timeout, 60)
+        self.assertEqual(args.command, "plan")
+
+    @mock.patch("locklane_resolver.cli.compose_upgrade_plan")
+    def test_plan_json_output_contains_expected_keys(self, mock_plan: mock.Mock) -> None:
+        mock_plan.return_value = {
+            "manifest_path": "/tmp/requirements.txt",
+            "resolver": "uv",
+            "safe_updates": [],
+            "blocked_updates": [],
+            "inconclusive_updates": [],
+            "ordered_steps": [],
+        }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "requirements.txt"
+            manifest.write_text("", encoding="utf-8")
+            out_file = Path(tmp) / "plan.json"
+
+            exit_code = cli.main([
+                "plan",
+                "--manifest", str(manifest),
+                "--resolver", "uv",
+                "--json-out", str(out_file),
+            ])
+
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(out_file.read_text(encoding="utf-8"))
+            for key in ("schema_version", "timestamp_utc", "status",
+                        "safe_updates", "blocked_updates", "ordered_steps",
+                        "inconclusive_updates", "manifest_path", "resolver"):
+                self.assertIn(key, payload, f"Missing key: {key}")
+
+
 if __name__ == "__main__":
     unittest.main()
 
