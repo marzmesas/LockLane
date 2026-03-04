@@ -23,6 +23,7 @@ from .models import ToolAvailability
 from .models import now_utc_iso
 from .resolver import _detect_python_version
 from .resolver import resolve
+from .planner import compose_upgrade_plan
 from .simulator import simulate_candidate
 
 SUPPORTED_RESOLVERS = {"uv": "uv", "pip-tools": "pip-compile"}
@@ -243,6 +244,45 @@ def verify(manifest: Path, resolver: str, command: str) -> dict[str, Any]:
     }
 
 
+def plan(
+    manifest: Path,
+    resolver: str,
+    *,
+    python_path: str | None = None,
+    timeout: int = 120,
+) -> dict[str, Any]:
+    """Compose a full upgrade plan for all pinned dependencies."""
+    dependencies = parse_requirements(manifest)
+
+    try:
+        plan_data = compose_upgrade_plan(
+            manifest_path=manifest,
+            dependencies=dependencies,
+            resolver=resolver,
+            python_path=python_path,
+            timeout=timeout,
+        )
+        status = "ok"
+    except Exception as exc:
+        plan_data = {
+            "manifest_path": str(manifest),
+            "resolver": resolver,
+            "safe_updates": [],
+            "blocked_updates": [],
+            "inconclusive_updates": [],
+            "ordered_steps": [],
+        }
+        status = "error"
+        plan_data["error"] = str(exc)
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "timestamp_utc": now_utc_iso(),
+        "status": status,
+        **plan_data,
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Create CLI parser."""
     parser = argparse.ArgumentParser(prog="locklane-resolver", description="Locklane resolver worker")
@@ -279,6 +319,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Verification command to run in manifest directory",
     )
 
+    plan_parser = subparsers.add_parser("plan", help="Compose upgrade plan for all pinned dependencies")
+    add_common(plan_parser)
+    plan_parser.add_argument("--python", type=str, default=None, help="Path to Python interpreter for resolution")
+    plan_parser.add_argument("--timeout", type=int, default=120, help="Resolution timeout in seconds")
+
     return parser
 
 
@@ -305,6 +350,13 @@ def main(argv: list[str] | None = None) -> int:
             args.resolver,
             args.package,
             args.target_version,
+            python_path=args.python,
+            timeout=args.timeout,
+        )
+    elif args.command == "plan":
+        payload = plan(
+            args.manifest,
+            args.resolver,
             python_path=args.python,
             timeout=args.timeout,
         )
