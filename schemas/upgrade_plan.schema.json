@@ -18,6 +18,11 @@
       "type": "string",
       "enum": ["ok", "error"]
     },
+    "manifest_path": { "type": "string" },
+    "resolver": {
+      "type": "string",
+      "enum": ["uv", "pip-tools"]
+    },
     "safe_updates": {
       "type": "array",
       "items": {
@@ -31,6 +36,36 @@
       }
     },
     "blocked_updates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["package", "target_version", "reason"],
+        "properties": {
+          "package": { "type": "string" },
+          "target_version": { "type": "string" },
+          "reason": { "type": "string" },
+          "conflict_chain": {
+            "type": "object",
+            "properties": {
+              "summary": { "type": "string" },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["package", "constraint", "required_by"],
+                  "properties": {
+                    "package": { "type": "string" },
+                    "constraint": { "type": "string" },
+                    "required_by": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "inconclusive_updates": {
       "type": "array",
       "items": {
         "type": "object",
@@ -63,4 +98,3 @@
     }
   }
 }
-
