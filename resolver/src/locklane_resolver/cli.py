@@ -23,6 +23,7 @@ from .models import ToolAvailability
 from .models import now_utc_iso
 from .resolver import _detect_python_version
 from .resolver import resolve
+from .simulator import simulate_candidate
 
 SUPPORTED_RESOLVERS = {"uv": "uv", "pip-tools": "pip-compile"}
 
@@ -160,35 +161,57 @@ def baseline(
     return payload
 
 
-def simulate(manifest: Path, resolver: str, package: str, target_version: str) -> dict[str, Any]:
-    """Return phase-1 simulation classification for a single candidate."""
+def simulate(
+    manifest: Path,
+    resolver: str,
+    package: str,
+    target_version: str,
+    *,
+    python_path: str | None = None,
+    timeout: int = 120,
+) -> dict[str, Any]:
+    """Simulate resolution with a bumped candidate version."""
     dependencies = parse_requirements(manifest)
     normalized = {dep.name.lower(): dep for dep in dependencies}
     found = normalized.get(package.lower())
 
     if found is None:
-        result = "BLOCKED"
-        explanation = f"Package '{package}' was not found in manifest."
-    else:
-        result = "INCONCLUSIVE"
-        explanation = (
-            "Simulation engine is not enabled yet in phase 1. "
-            "Candidate was detected and queued for phase-3 resolver simulation."
-        )
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "timestamp_utc": now_utc_iso(),
+            "resolver": resolver,
+            "status": "ok",
+            "manifest_path": str(manifest),
+            "candidate": {"package": package, "target_version": target_version},
+            "result": "BLOCKED",
+            "explanation": f"Package '{package}' was not found in manifest.",
+            "conflict_chain": None,
+            "raw_logs": None,
+        }
 
-    return {
+    sim = simulate_candidate(
+        manifest_path=manifest,
+        dependencies=dependencies,
+        package=package,
+        target_version=target_version,
+        preferred_resolver=resolver,
+        python_path=python_path,
+        timeout=timeout,
+    )
+
+    payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "timestamp_utc": now_utc_iso(),
         "resolver": resolver,
         "status": "ok",
         "manifest_path": str(manifest),
-        "candidate": {
-            "package": package,
-            "target_version": target_version,
-        },
-        "result": result,
-        "explanation": explanation,
+        "candidate": {"package": package, "target_version": target_version},
+        "result": sim.result,
+        "explanation": sim.explanation,
+        "conflict_chain": sim.conflict_chain.to_dict() if sim.conflict_chain else None,
+        "raw_logs": sim.raw_logs,
     }
+    return payload
 
 
 def verify(manifest: Path, resolver: str, command: str) -> dict[str, Any]:
@@ -245,6 +268,8 @@ def build_parser() -> argparse.ArgumentParser:
     add_common(simulate_parser)
     simulate_parser.add_argument("--package", required=True, help="Candidate package name")
     simulate_parser.add_argument("--target-version", required=True, help="Candidate target version")
+    simulate_parser.add_argument("--python", type=str, default=None, help="Path to Python interpreter for resolution")
+    simulate_parser.add_argument("--timeout", type=int, default=120, help="Resolution timeout in seconds")
 
     verify_parser = subparsers.add_parser("verify", help="Run verification command")
     add_common(verify_parser)
@@ -275,7 +300,14 @@ def main(argv: list[str] | None = None) -> int:
             no_resolve=args.no_resolve,
         )
     elif args.command == "simulate":
-        payload = simulate(args.manifest, args.resolver, args.package, args.target_version)
+        payload = simulate(
+            args.manifest,
+            args.resolver,
+            args.package,
+            args.target_version,
+            python_path=args.python,
+            timeout=args.timeout,
+        )
     else:
         payload = verify(args.manifest, args.resolver, args.command)
 
