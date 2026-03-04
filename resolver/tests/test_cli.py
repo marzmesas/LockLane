@@ -10,6 +10,7 @@ from unittest import mock
 
 from locklane_resolver import cli
 from locklane_resolver.models import ResolverError
+from locklane_resolver.simulator import ConflictChain, ConflictLink, SimulationResult
 
 
 class ResolverCliTests(unittest.TestCase):
@@ -50,6 +51,8 @@ class ResolverCliTests(unittest.TestCase):
 
             payload = cli.simulate(manifest, "uv", "httpx", "0.28.1")
             self.assertEqual(payload["result"], "BLOCKED")
+            self.assertIsNone(payload["conflict_chain"])
+            self.assertIsNone(payload["raw_logs"])
 
     def test_verify_reports_failure(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -173,6 +176,69 @@ class BaselineCachingTests(unittest.TestCase):
             mock_load.return_value = payload
             cached_payload = cli.baseline(manifest, "uv")
             self.assertEqual(cached_payload, payload)
+
+
+class SimulatePhase3Tests(unittest.TestCase):
+    """Phase-3 simulate integration tests."""
+
+    @mock.patch("locklane_resolver.cli.simulate_candidate")
+    def test_safe_now_with_mocked_resolver(self, mock_sim: mock.Mock) -> None:
+        mock_sim.return_value = SimulationResult(
+            result="SAFE_NOW",
+            explanation="Resolution succeeded with requests==2.31.1.",
+            raw_logs={"stdout": "requests==2.31.1\n", "stderr": ""},
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "requirements.txt"
+            manifest.write_text("requests==2.31.0\n", encoding="utf-8")
+
+            payload = cli.simulate(manifest, "uv", "requests", "2.31.1")
+            self.assertEqual(payload["result"], "SAFE_NOW")
+            self.assertIsNone(payload["conflict_chain"])
+
+    @mock.patch("locklane_resolver.cli.simulate_candidate")
+    def test_blocked_with_conflict_chain(self, mock_sim: mock.Mock) -> None:
+        chain = ConflictChain(
+            summary="Because foo depends on bar(>=2.0)",
+            links=[ConflictLink(package="bar", constraint=">=2.0", required_by="foo")],
+            raw_stderr="Because foo depends on bar(>=2.0)",
+        )
+        mock_sim.return_value = SimulationResult(
+            result="BLOCKED",
+            explanation="Resolution failed.",
+            conflict_chain=chain,
+            raw_logs={"stdout": "", "stderr": "Because foo depends on bar(>=2.0)"},
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "requirements.txt"
+            manifest.write_text("requests==2.31.0\n", encoding="utf-8")
+
+            payload = cli.simulate(manifest, "uv", "requests", "2.31.1")
+            self.assertEqual(payload["result"], "BLOCKED")
+            self.assertIsNotNone(payload["conflict_chain"])
+            self.assertEqual(payload["conflict_chain"]["links"][0]["package"], "bar")
+
+    def test_package_not_in_manifest_still_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "requirements.txt"
+            manifest.write_text("requests==2.31.0\n", encoding="utf-8")
+
+            payload = cli.simulate(manifest, "uv", "nonexistent", "1.0.0")
+            self.assertEqual(payload["result"], "BLOCKED")
+            self.assertIn("not found", payload["explanation"])
+
+    def test_simulate_cli_accepts_python_and_timeout_args(self) -> None:
+        parser = cli.build_parser()
+        args = parser.parse_args([
+            "simulate",
+            "--manifest", "/tmp/test.txt",
+            "--package", "requests",
+            "--target-version", "2.31.1",
+            "--python", "/usr/bin/python3",
+            "--timeout", "60",
+        ])
+        self.assertEqual(args.python, "/usr/bin/python3")
+        self.assertEqual(args.timeout, 60)
 
 
 if __name__ == "__main__":
