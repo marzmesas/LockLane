@@ -39,6 +39,42 @@
     },
     "explanation": {
       "type": "string"
+    },
+    "conflict_chain": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["summary", "links"],
+          "properties": {
+            "summary": { "type": "string" },
+            "links": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["package", "constraint", "required_by"],
+                "properties": {
+                  "package": { "type": "string" },
+                  "constraint": { "type": "string" },
+                  "required_by": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "raw_logs": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "properties": {
+            "stdout": { "type": "string" },
+            "stderr": { "type": "string" }
+          }
+        }
+      ]
     }
   }
 }

@@ -69,7 +69,11 @@ def run_uv_compile(manifest_path: Path, python_path: str | None = None) -> str:
         timeout=_TIMEOUT_SECONDS,
     )
     if result.returncode != 0:
-        raise ResolverError(f"uv pip compile failed (exit {result.returncode}): {result.stderr}")
+        raise ResolverError(
+            f"uv pip compile failed (exit {result.returncode}): {result.stderr}",
+            stderr=result.stderr,
+            exit_code=result.returncode,
+        )
     return result.stdout
 
 
@@ -91,7 +95,11 @@ def run_pip_compile(manifest_path: Path) -> str:
         timeout=_TIMEOUT_SECONDS,
     )
     if result.returncode != 0:
-        raise ResolverError(f"pip-compile failed (exit {result.returncode}): {result.stderr}")
+        raise ResolverError(
+            f"pip-compile failed (exit {result.returncode}): {result.stderr}",
+            stderr=result.stderr,
+            exit_code=result.returncode,
+        )
     return result.stdout
 
 

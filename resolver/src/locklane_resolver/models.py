@@ -11,7 +11,7 @@ from datetime import timezone
 from typing import Any
 
 
-SCHEMA_VERSION = "0.2.0"
+SCHEMA_VERSION = "0.3.0"
 
 
 def now_utc_iso() -> str:
@@ -45,6 +45,11 @@ class ParsedDependency:
 
 class ResolverError(Exception):
     """Raised when all resolver tools fail."""
+
+    def __init__(self, message: str, stderr: str = "", exit_code: int = -1):
+        super().__init__(message)
+        self.stderr = stderr
+        self.exit_code = exit_code
 
 
 @dataclass(slots=True)
