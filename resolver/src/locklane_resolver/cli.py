@@ -27,6 +27,7 @@ from .planner import compose_upgrade_plan
 from .simulator import simulate_candidate
 from .verifier import verify_plan as run_verify_plan
 from .verifier import write_log_file
+from .applier import apply_plan as run_apply_plan
 
 SUPPORTED_RESOLVERS = {"uv": "uv", "pip-tools": "pip-compile"}
 
@@ -321,6 +322,34 @@ def verify_plan_cmd(
     }
 
 
+def apply_cmd(
+    manifest: Path,
+    plan_json: Path,
+    *,
+    output: Path | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Apply an upgrade plan to the manifest."""
+    plan_data = json.loads(plan_json.read_text(encoding="utf-8"))
+
+    result = run_apply_plan(
+        manifest_path=manifest,
+        plan_data=plan_data,
+        output=output,
+        dry_run=dry_run,
+    )
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "timestamp_utc": now_utc_iso(),
+        "status": "ok",
+        "manifest_path": str(manifest),
+        "plan_path": str(plan_json),
+        "dry_run": dry_run,
+        "apply": result.to_dict(),
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Create CLI parser."""
     parser = argparse.ArgumentParser(prog="locklane-resolver", description="Locklane resolver worker")
@@ -371,6 +400,12 @@ def build_parser() -> argparse.ArgumentParser:
     vp_parser.add_argument("--timeout", type=int, default=120, help="Timeout in seconds for each step")
     vp_parser.add_argument("--log-file", type=Path, default=None, help="Path to write human-readable log")
 
+    apply_parser = subparsers.add_parser("apply", help="Apply an upgrade plan to the manifest")
+    add_common(apply_parser)
+    apply_parser.add_argument("--plan-json", required=True, type=Path, help="Path to plan JSON file")
+    apply_parser.add_argument("--output", type=Path, default=None, help="Write modified manifest to this path instead of in-place")
+    apply_parser.add_argument("--dry-run", action="store_true", help="Preview changes without writing")
+
     return parser
 
 
@@ -418,6 +453,15 @@ def main(argv: list[str] | None = None) -> int:
             python_path=args.python,
             timeout=args.timeout,
             log_file=args.log_file,
+        )
+    elif args.command == "apply":
+        if not args.plan_json.exists():
+            parser.error(f"Plan JSON path does not exist: {args.plan_json}")
+        payload = apply_cmd(
+            args.manifest,
+            args.plan_json,
+            output=args.output,
+            dry_run=args.dry_run,
         )
     else:
         payload = verify(args.manifest, args.resolver, args.verify_cmd)
