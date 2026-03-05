@@ -23,17 +23,36 @@
       "enum": ["ok", "error"]
     },
     "manifest_path": { "type": "string" },
+    "plan_path": { "type": "string" },
     "verification": {
       "type": "object",
-      "required": ["command", "passed", "exit_code", "stdout", "stderr"],
+      "required": ["passed"],
       "properties": {
         "command": { "type": "string" },
         "passed": { "type": "boolean" },
         "exit_code": { "type": "integer" },
         "stdout": { "type": "string" },
-        "stderr": { "type": "string" }
+        "stderr": { "type": "string" },
+        "summary": { "type": "string" },
+        "venv_path": { "type": "string" },
+        "modified_manifest_path": { "type": "string" },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "command", "passed", "exit_code", "stdout", "stderr", "duration_seconds"],
+            "properties": {
+              "name": { "type": "string" },
+              "command": { "type": "string" },
+              "passed": { "type": "boolean" },
+              "exit_code": { "type": "integer" },
+              "stdout": { "type": "string" },
+              "stderr": { "type": "string" },
+              "duration_seconds": { "type": "number" }
+            }
+          }
+        }
       }
     }
   }
 }
-
