@@ -320,6 +320,127 @@ class PlanPhase4Tests(unittest.TestCase):
                 self.assertIn(key, payload, f"Missing key: {key}")
 
 
+class VerifyPlanPhase5Tests(unittest.TestCase):
+    """Phase-5 verify-plan CLI tests."""
+
+    def test_parser_accepts_verify_plan_with_all_flags(self) -> None:
+        parser = cli.build_parser()
+        args = parser.parse_args([
+            "verify-plan",
+            "--manifest", "/tmp/test.txt",
+            "--plan-json", "/tmp/plan.json",
+            "--command", "pytest",
+            "--python", "/usr/bin/python3",
+            "--timeout", "60",
+            "--log-file", "/tmp/verify.log",
+        ])
+        self.assertEqual(args.command, "verify-plan")
+        self.assertEqual(args.plan_json, Path("/tmp/plan.json"))
+        self.assertEqual(args.verify_command, "pytest")
+        self.assertEqual(args.python, "/usr/bin/python3")
+        self.assertEqual(args.timeout, 60)
+        self.assertEqual(args.log_file, Path("/tmp/verify.log"))
+
+    @mock.patch("locklane_resolver.cli.run_verify_plan")
+    def test_verify_plan_cmd_returns_correct_envelope(self, mock_vp: mock.Mock) -> None:
+        from locklane_resolver.verifier import VerificationReport
+        mock_vp.return_value = VerificationReport(
+            passed=True, steps=[], summary="No safe updates to verify.",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "requirements.txt"
+            manifest.write_text("requests==2.31.0\n", encoding="utf-8")
+            plan_file = Path(tmp) / "plan.json"
+            plan_file.write_text(json.dumps({"safe_updates": []}), encoding="utf-8")
+
+            payload = cli.verify_plan_cmd(manifest, "uv", plan_file)
+            for key in ("schema_version", "timestamp_utc", "status",
+                        "manifest_path", "plan_path", "resolver", "verification"):
+                self.assertIn(key, payload, f"Missing key: {key}")
+            self.assertEqual(payload["status"], "ok")
+
+    @mock.patch("locklane_resolver.cli.run_verify_plan")
+    def test_main_dispatches_verify_plan(self, mock_vp: mock.Mock) -> None:
+        from locklane_resolver.verifier import VerificationReport
+        mock_vp.return_value = VerificationReport(
+            passed=True, steps=[], summary="No safe updates to verify.",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "requirements.txt"
+            manifest.write_text("requests==2.31.0\n", encoding="utf-8")
+            plan_file = Path(tmp) / "plan.json"
+            plan_file.write_text(json.dumps({"safe_updates": []}), encoding="utf-8")
+            out_file = Path(tmp) / "result.json"
+
+            exit_code = cli.main([
+                "verify-plan",
+                "--manifest", str(manifest),
+                "--plan-json", str(plan_file),
+                "--json-out", str(out_file),
+            ])
+            self.assertEqual(exit_code, 0)
+            payload = json.loads(out_file.read_text(encoding="utf-8"))
+            self.assertIn("verification", payload)
+            self.assertEqual(payload["status"], "ok")
+
+    @mock.patch("locklane_resolver.cli.run_verify_plan")
+    def test_json_output_contains_all_required_keys(self, mock_vp: mock.Mock) -> None:
+        from locklane_resolver.verifier import VerificationReport, VerificationStep
+        mock_vp.return_value = VerificationReport(
+            passed=False,
+            steps=[VerificationStep(
+                name="create_venv", command="python -m venv",
+                passed=False, exit_code=1, stdout="", stderr="failed",
+                duration_seconds=0.5,
+            )],
+            summary="Venv creation failed.",
+            venv_path="/tmp/.venv",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "requirements.txt"
+            manifest.write_text("requests==2.31.0\n", encoding="utf-8")
+            plan_file = Path(tmp) / "plan.json"
+            plan_file.write_text(json.dumps({
+                "safe_updates": [{"package": "requests", "from_version": "2.31.0", "to_version": "2.31.1"}],
+            }), encoding="utf-8")
+            out_file = Path(tmp) / "result.json"
+
+            cli.main([
+                "verify-plan",
+                "--manifest", str(manifest),
+                "--plan-json", str(plan_file),
+                "--json-out", str(out_file),
+            ])
+            payload = json.loads(out_file.read_text(encoding="utf-8"))
+            self.assertEqual(payload["status"], "error")
+            self.assertIn("steps", payload["verification"])
+            self.assertIn("passed", payload["verification"])
+            self.assertIn("summary", payload["verification"])
+
+    @mock.patch("locklane_resolver.cli.write_log_file")
+    @mock.patch("locklane_resolver.cli.run_verify_plan")
+    def test_log_file_produced(self, mock_vp: mock.Mock, mock_log: mock.Mock) -> None:
+        from locklane_resolver.verifier import VerificationReport
+        mock_vp.return_value = VerificationReport(
+            passed=True, steps=[], summary="ok",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "requirements.txt"
+            manifest.write_text("requests==2.31.0\n", encoding="utf-8")
+            plan_file = Path(tmp) / "plan.json"
+            plan_file.write_text(json.dumps({"safe_updates": []}), encoding="utf-8")
+            log_file = Path(tmp) / "verify.log"
+
+            cli.verify_plan_cmd(
+                manifest, "uv", plan_file, log_file=log_file,
+            )
+            mock_log.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()
 
