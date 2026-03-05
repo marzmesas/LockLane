@@ -147,6 +147,79 @@ def parse_conflict_chain(stderr: str) -> ConflictChain | None:
 # Manifest manipulation
 # ---------------------------------------------------------------------------
 
+def _find_dependency_line(
+    lines: list[str],
+    package: str,
+) -> tuple[int, str] | None:
+    """Find the line index and stripped content for a dependency.
+
+    Iterates *lines* (raw, with possible newlines), skips comments and flags,
+    extracts the bare package name, and returns ``(line_index, stripped)`` on
+    match or ``None`` if the package is not present.
+    """
+    pkg_lower = package.lower()
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith("-"):
+            continue
+
+        token = stripped.split(";", 1)[0].strip()
+        name = token
+        for op in ("==", "~=", "!=", ">=", "<=", ">", "<"):
+            if op in token:
+                name = token[:token.index(op)].strip()
+                break
+
+        bare_name = name.split("[", 1)[0] if "[" in name else name
+
+        if bare_name.lower() == pkg_lower:
+            return (i, stripped)
+
+    return None
+
+
+def _build_replacement_line(
+    stripped: str,
+    package: str,
+    target_version: str,
+) -> str:
+    """Build a replacement dependency line from a stripped original.
+
+    Preserves markers (after ``;``), inline comments (after ``#``), and
+    extras (``[security]``).  Returns the new line content **without** a
+    trailing newline.
+    """
+    # Extract name (with possible extras) before any specifier
+    token = stripped.split(";", 1)[0].strip()
+    name = token
+    for op in ("==", "~=", "!=", ">=", "<=", ">", "<"):
+        if op in token:
+            name = token[:token.index(op)].strip()
+            break
+
+    bare_name = name.split("[", 1)[0] if "[" in name else name
+
+    # Preserve markers
+    marker_part = ""
+    if ";" in stripped:
+        marker_part = " ; " + stripped.split(";", 1)[1].strip()
+
+    # Preserve inline comment (only in the spec portion, before markers)
+    comment_part = ""
+    raw_no_marker = stripped.split(";", 1)[0]
+    if "#" in raw_no_marker:
+        comment_idx = raw_no_marker.index("#")
+        comment_part = "  " + raw_no_marker[comment_idx:]
+
+    # Preserve extras
+    extras = ""
+    if "[" in name:
+        extras = "[" + name.split("[", 1)[1]
+
+    return f"{bare_name}{extras}=={target_version}{marker_part}{comment_part}"
+
+
 def create_modified_manifest(
     original: Path,
     dependencies: list[Any],
@@ -160,51 +233,12 @@ def create_modified_manifest(
     dependency line is replaced.
     """
     lines = original.read_text(encoding="utf-8").splitlines(keepends=True)
-    pkg_lower = package.lower()
-    modified = False
 
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or stripped.startswith("-"):
-            continue
-
-        # Extract name from the line (before any specifier or marker)
-        token = stripped.split(";", 1)[0].strip()
-        name = token
-        for op in ("==", "~=", "!=", ">=", "<=", ">", "<"):
-            if op in token:
-                name = token[:token.index(op)].strip()
-                break
-
-        # Remove extras for matching
-        bare_name = name.split("[", 1)[0] if "[" in name else name
-
-        if bare_name.lower() == pkg_lower:
-            # Preserve any markers after ;
-            marker_part = ""
-            if ";" in stripped:
-                marker_part = " ; " + stripped.split(";", 1)[1].strip()
-
-            # Preserve inline comment
-            comment_part = ""
-            raw_no_marker = stripped.split(";", 1)[0]
-            if "#" in raw_no_marker:
-                comment_idx = raw_no_marker.index("#")
-                comment_part = "  " + raw_no_marker[comment_idx:]
-
-            # Preserve extras
-            extras = ""
-            if "[" in name:
-                extras = "[" + name.split("[", 1)[1]
-
-            new_line = f"{bare_name}{extras}=={target_version}{marker_part}{comment_part}\n"
-            lines[i] = new_line
-            modified = True
-            break
-
-    if not modified:
-        # Package not found in manifest — write unchanged
-        pass
+    match = _find_dependency_line(lines, package)
+    if match is not None:
+        idx, stripped = match
+        new_content = _build_replacement_line(stripped, package, target_version)
+        lines[idx] = new_content + "\n"
 
     dest = dest_dir / original.name
     dest.write_text("".join(lines), encoding="utf-8")
