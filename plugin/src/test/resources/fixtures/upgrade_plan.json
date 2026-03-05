@@ -1,0 +1,44 @@
+{
+  "blocked_updates": [
+    {
+      "conflict_chain": {
+        "links": [
+          {
+            "constraint": ">=2.0,<3.0",
+            "package": "urllib3",
+            "required_by": "requests"
+          }
+        ],
+        "summary": "Because requests depends on urllib3(>=2.0,<3.0)"
+      },
+      "package": "urllib3",
+      "reason": "Resolution failed: conflicting requirements",
+      "target_version": "3.0.0"
+    }
+  ],
+  "inconclusive_updates": [
+    {
+      "package": "cryptography",
+      "reason": "Failed to fetch versions from PyPI for cryptography.",
+      "target_version": "41.0.0"
+    }
+  ],
+  "manifest_path": "/project/requirements.txt",
+  "ordered_steps": [
+    {
+      "description": "Apply all 1 safe updates: requests 2.31.0->2.31.1",
+      "step": 1
+    }
+  ],
+  "resolver": "uv",
+  "safe_updates": [
+    {
+      "from_version": "2.31.0",
+      "package": "requests",
+      "to_version": "2.31.1"
+    }
+  ],
+  "schema_version": "0.6.0",
+  "status": "ok",
+  "timestamp_utc": "2026-01-15T10:32:00+00:00"
+}

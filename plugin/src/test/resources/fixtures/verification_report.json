@@ -1,0 +1,34 @@
+{
+  "manifest_path": "/project/requirements.txt",
+  "plan_path": "/project/plan.json",
+  "resolver": "uv",
+  "schema_version": "0.6.0",
+  "status": "ok",
+  "timestamp_utc": "2026-01-15T10:33:00+00:00",
+  "verification": {
+    "modified_manifest_path": "/tmp/locklane-verify-abc/requirements.txt",
+    "passed": true,
+    "steps": [
+      {
+        "command": "/usr/bin/python3 -m venv /tmp/locklane-verify-abc/.venv",
+        "duration_seconds": 1.234,
+        "exit_code": 0,
+        "name": "create_venv",
+        "passed": true,
+        "stderr": "",
+        "stdout": ""
+      },
+      {
+        "command": "uv pip install -r /tmp/locklane-verify-abc/requirements.txt --python /tmp/locklane-verify-abc/.venv/bin/python",
+        "duration_seconds": 3.567,
+        "exit_code": 0,
+        "name": "install_dependencies",
+        "passed": true,
+        "stderr": "",
+        "stdout": "Installed 5 packages"
+      }
+    ],
+    "summary": "All 2/2 steps passed.",
+    "venv_path": "/tmp/locklane-verify-abc/.venv"
+  }
+}

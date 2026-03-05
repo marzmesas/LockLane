@@ -1,0 +1,34 @@
+{
+  "apply": {
+    "applied": false,
+    "manifest_path": "/project/requirements.txt",
+    "output_path": null,
+    "patch_preview": "--- requirements.txt\n+++ requirements.txt\n@@ -1,1 +1,1 @@\n-requests==2.31.0\n+requests==2.31.1\n",
+    "rollback": {
+      "created_utc": "2026-01-15T10:34:00+00:00",
+      "manifest_path": "/project/requirements.txt",
+      "original_content": "requests==2.31.0\nflask==3.0.0\n",
+      "reverse_updates": [
+        {
+          "from_version": "2.31.1",
+          "package": "requests",
+          "to_version": "2.31.0"
+        }
+      ],
+      "schema_version": "0.6.0"
+    },
+    "updates_applied": [
+      {
+        "from_version": "2.31.0",
+        "package": "requests",
+        "to_version": "2.31.1"
+      }
+    ]
+  },
+  "dry_run": true,
+  "manifest_path": "/project/requirements.txt",
+  "plan_path": "/project/plan.json",
+  "schema_version": "0.6.0",
+  "status": "ok",
+  "timestamp_utc": "2026-01-15T10:34:00+00:00"
+}

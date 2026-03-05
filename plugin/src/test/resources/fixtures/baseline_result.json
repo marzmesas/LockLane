@@ -1,0 +1,61 @@
+{
+  "cache_key": {
+    "interpreter_path": "/usr/bin/python3",
+    "manifest_sha256": "abc123def456",
+    "python_version": "3.12.0"
+  },
+  "dependencies": [
+    {
+      "line_number": 1,
+      "name": "requests",
+      "raw_line": "requests==2.31.0",
+      "specifier": "==2.31.0"
+    },
+    {
+      "line_number": 2,
+      "name": "flask",
+      "raw_line": "flask==3.0.0",
+      "specifier": "==3.0.0"
+    }
+  ],
+  "manifest_path": "/project/requirements.txt",
+  "resolution": {
+    "packages": [
+      {
+        "is_direct": true,
+        "name": "requests",
+        "required_by": [],
+        "version": "2.31.0"
+      },
+      {
+        "is_direct": false,
+        "name": "urllib3",
+        "required_by": ["requests"],
+        "version": "2.1.0"
+      },
+      {
+        "is_direct": true,
+        "name": "flask",
+        "required_by": [],
+        "version": "3.0.0"
+      }
+    ],
+    "python_version": "3.12.0",
+    "resolver_tool": "uv",
+    "resolver_version": "0.5.0"
+  },
+  "resolver": "uv",
+  "schema_version": "0.6.0",
+  "status": "ok",
+  "timestamp_utc": "2026-01-15T10:30:00+00:00",
+  "tooling": {
+    "pip-tools": {
+      "available": false,
+      "binary": "pip-compile"
+    },
+    "uv": {
+      "available": true,
+      "binary": "uv"
+    }
+  }
+}
