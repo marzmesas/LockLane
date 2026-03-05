@@ -25,6 +25,8 @@ from .resolver import _detect_python_version
 from .resolver import resolve
 from .planner import compose_upgrade_plan
 from .simulator import simulate_candidate
+from .verifier import verify_plan as run_verify_plan
+from .verifier import write_log_file
 
 SUPPORTED_RESOLVERS = {"uv": "uv", "pip-tools": "pip-compile"}
 
@@ -283,6 +285,42 @@ def plan(
     }
 
 
+def verify_plan_cmd(
+    manifest: Path,
+    resolver: str,
+    plan_json: Path,
+    *,
+    command: str | None = None,
+    python_path: str | None = None,
+    timeout: int = 120,
+    log_file: Path | None = None,
+) -> dict[str, Any]:
+    """Run verification lane on a plan JSON file."""
+    plan_data = json.loads(plan_json.read_text(encoding="utf-8"))
+
+    report = run_verify_plan(
+        manifest_path=manifest,
+        plan_data=plan_data,
+        resolver=resolver,
+        command=command,
+        python_path=python_path,
+        timeout=timeout,
+    )
+
+    if log_file is not None:
+        write_log_file(log_file, report)
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "timestamp_utc": now_utc_iso(),
+        "status": "ok" if report.passed else "error",
+        "manifest_path": str(manifest),
+        "plan_path": str(plan_json),
+        "resolver": resolver,
+        "verification": report.to_dict(),
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Create CLI parser."""
     parser = argparse.ArgumentParser(prog="locklane-resolver", description="Locklane resolver worker")
@@ -315,6 +353,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_common(verify_parser)
     verify_parser.add_argument(
         "--command",
+        dest="verify_cmd",
         default='python -c "import pkgutil; print(\'ok\')"',
         help="Verification command to run in manifest directory",
     )
@@ -323,6 +362,14 @@ def build_parser() -> argparse.ArgumentParser:
     add_common(plan_parser)
     plan_parser.add_argument("--python", type=str, default=None, help="Path to Python interpreter for resolution")
     plan_parser.add_argument("--timeout", type=int, default=120, help="Resolution timeout in seconds")
+
+    vp_parser = subparsers.add_parser("verify-plan", help="Verify an upgrade plan in a disposable venv")
+    add_common(vp_parser)
+    vp_parser.add_argument("--plan-json", required=True, type=Path, help="Path to plan JSON file")
+    vp_parser.add_argument("--command", dest="verify_command", type=str, default=None, help="Verification command to run after install")
+    vp_parser.add_argument("--python", type=str, default=None, help="Path to Python interpreter")
+    vp_parser.add_argument("--timeout", type=int, default=120, help="Timeout in seconds for each step")
+    vp_parser.add_argument("--log-file", type=Path, default=None, help="Path to write human-readable log")
 
     return parser
 
@@ -360,8 +407,20 @@ def main(argv: list[str] | None = None) -> int:
             python_path=args.python,
             timeout=args.timeout,
         )
+    elif args.command == "verify-plan":
+        if not args.plan_json.exists():
+            parser.error(f"Plan JSON path does not exist: {args.plan_json}")
+        payload = verify_plan_cmd(
+            args.manifest,
+            args.resolver,
+            args.plan_json,
+            command=args.verify_command,
+            python_path=args.python,
+            timeout=args.timeout,
+            log_file=args.log_file,
+        )
     else:
-        payload = verify(args.manifest, args.resolver, args.command)
+        payload = verify(args.manifest, args.resolver, args.verify_cmd)
 
     write_json(payload, args.json_out)
     return 0
