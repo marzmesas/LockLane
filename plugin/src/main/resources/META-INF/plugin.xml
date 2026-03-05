@@ -5,7 +5,7 @@
 
     <description><![CDATA[
         <p>Locklane plans safe Python dependency updates for requirements files with conflict-aware guidance.</p>
-        <p>Phase 1 bootstrap: tool window scaffold and resolver integration skeleton.</p>
+        <p>Analyses pinned dependencies, simulates upgrades, and generates verified update plans.</p>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
@@ -17,6 +17,15 @@
                 factoryClass="io.locklane.LocklaneToolWindowFactory"
                 canCloseContents="false"
                 icon="/icons/locklaneToolWindow.svg"/>
+
+        <projectConfigurable
+                parentId="tools"
+                instance="io.locklane.settings.LocklaneConfigurable"
+                id="io.locklane.settings"
+                displayName="Locklane"
+                nonDefaultProject="true"/>
+        <projectService serviceImplementation="io.locklane.settings.LocklaneSettings"/>
+        <projectService serviceImplementation="io.locklane.service.ResolverService"/>
     </extensions>
 </idea-plugin>
 
