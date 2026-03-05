@@ -11,7 +11,7 @@ from datetime import timezone
 from typing import Any
 
 
-SCHEMA_VERSION = "0.4.0"
+SCHEMA_VERSION = "0.5.0"
 
 
 def now_utc_iso() -> str:
