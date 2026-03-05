@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://locklane.dev/schemas/apply_result.schema.json",
+  "title": "ApplyResult",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "timestamp_utc",
+    "status",
+    "manifest_path",
+    "plan_path",
+    "dry_run",
+    "apply"
+  ],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "timestamp_utc": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "error"]
+    },
+    "manifest_path": { "type": "string" },
+    "plan_path": { "type": "string" },
+    "dry_run": { "type": "boolean" },
+    "apply": {
+      "type": "object",
+      "required": [
+        "applied",
+        "manifest_path",
+        "output_path",
+        "patch_preview",
+        "updates_applied",
+        "rollback"
+      ],
+      "properties": {
+        "applied": { "type": "boolean" },
+        "manifest_path": { "type": "string" },
+        "output_path": {
+          "type": ["string", "null"]
+        },
+        "patch_preview": { "type": "string" },
+        "updates_applied": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["package", "from_version", "to_version"],
+            "properties": {
+              "package": { "type": "string" },
+              "from_version": { "type": "string" },
+              "to_version": { "type": "string" }
+            }
+          }
+        },
+        "rollback": {
+          "type": ["object", "null"],
+          "properties": {
+            "schema_version": { "type": "string" },
+            "created_utc": { "type": "string" },
+            "manifest_path": { "type": "string" },
+            "original_content": { "type": "string" },
+            "reverse_updates": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["package", "from_version", "to_version"],
+                "properties": {
+                  "package": { "type": "string" },
+                  "from_version": { "type": "string" },
+                  "to_version": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
