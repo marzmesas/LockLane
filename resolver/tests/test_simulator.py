@@ -12,6 +12,7 @@ from locklane_resolver.simulator import (
     ConflictChain,
     ConflictLink,
     SimulationResult,
+    _find_dependency_line,
     _version_in_output,
     create_modified_manifest,
     parse_conflict_chain,
@@ -214,6 +215,35 @@ class SimulateCandidateTests(unittest.TestCase):
                 manifest, [], "requests", "2.31.1", preferred_resolver="pip-tools",
             )
             self.assertEqual(result.result, "SAFE_NOW")
+
+
+class FindDependencyLineTests(unittest.TestCase):
+    """Tests for _find_dependency_line()."""
+
+    def test_finds_pinned_package(self) -> None:
+        lines = ["requests==2.31.0\n", "click==8.1.7\n"]
+        result = _find_dependency_line(lines, "requests")
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 0)
+        self.assertEqual(result[1], "requests==2.31.0")
+
+    def test_finds_package_with_extras(self) -> None:
+        lines = ["uvicorn[standard]==0.29.0\n"]
+        result = _find_dependency_line(lines, "uvicorn")
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 0)
+        self.assertIn("[standard]", result[1])
+
+    def test_returns_none_for_missing(self) -> None:
+        lines = ["requests==2.31.0\n"]
+        result = _find_dependency_line(lines, "nonexistent")
+        self.assertIsNone(result)
+
+    def test_skips_comments_and_flags(self) -> None:
+        lines = ["# requests==old\n", "-r other.txt\n", "requests==2.31.0\n"]
+        result = _find_dependency_line(lines, "requests")
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 2)
 
 
 if __name__ == "__main__":
