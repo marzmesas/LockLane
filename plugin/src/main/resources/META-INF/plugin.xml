@@ -26,6 +26,8 @@
                 nonDefaultProject="true"/>
         <projectService serviceImplementation="io.locklane.settings.LocklaneSettings"/>
         <projectService serviceImplementation="io.locklane.service.ResolverService"/>
+
+        <notificationGroup id="Locklane" displayType="BALLOON"/>
     </extensions>
 </idea-plugin>
 
