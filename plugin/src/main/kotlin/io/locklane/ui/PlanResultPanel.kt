@@ -1,6 +1,5 @@
 package io.locklane.ui
 
-import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
 import io.locklane.model.BlockedUpdate
@@ -23,6 +22,13 @@ class PlanResultPanel : JPanel() {
         isEditable = false
         lineWrap = true
         wrapStyleWord = true
+    }
+
+    private val chainDetailArea = JTextArea().apply {
+        isEditable = false
+        lineWrap = true
+        wrapStyleWord = true
+        font = java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 12)
     }
 
     private val safeTable = JBTable(safeModel)
@@ -48,13 +54,39 @@ class PlanResultPanel : JPanel() {
             border = inconclusiveBorder
             preferredSize = Dimension(Int.MAX_VALUE, 150)
         }
+        val chainDetailScroll = JBScrollPane(chainDetailArea).apply {
+            border = BorderFactory.createTitledBorder("Conflict Chain")
+            preferredSize = Dimension(Int.MAX_VALUE, 120)
+        }
         val stepsScroll = JBScrollPane(stepsArea).apply {
             border = BorderFactory.createTitledBorder("Ordered Steps")
             preferredSize = Dimension(Int.MAX_VALUE, 120)
         }
 
+        blockedTable.selectionModel.addListSelectionListener { e ->
+            if (e.valueIsAdjusting) return@addListSelectionListener
+            val row = blockedTable.selectedRow
+            if (row < 0 || row >= blockedModel.data.size) {
+                chainDetailArea.text = ""
+                return@addListSelectionListener
+            }
+            val chain = blockedModel.data[row].conflictChain
+            if (chain == null) {
+                chainDetailArea.text = "(no conflict chain data)"
+            } else {
+                val sb = StringBuilder()
+                sb.appendLine("Summary: ${chain.summary}")
+                chain.links.forEachIndexed { i, link ->
+                    sb.appendLine("  ${i + 1}. ${link.packageName} (${link.constraint}) required by ${link.requiredBy}")
+                }
+                chainDetailArea.text = sb.toString()
+            }
+            chainDetailArea.caretPosition = 0
+        }
+
         add(safeScroll)
         add(blockedScroll)
+        add(chainDetailScroll)
         add(inconclusiveScroll)
         add(stepsScroll)
     }
@@ -81,6 +113,7 @@ class PlanResultPanel : JPanel() {
         safeBorder.title = "Safe Updates (0)"
         blockedBorder.title = "Blocked Updates (0)"
         inconclusiveBorder.title = "Inconclusive Updates (0)"
+        chainDetailArea.text = ""
         stepsArea.text = ""
         revalidate()
         repaint()

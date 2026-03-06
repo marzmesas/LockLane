@@ -11,6 +11,7 @@ import java.awt.Font
 import javax.swing.BorderFactory
 import javax.swing.BoxLayout
 import javax.swing.JPanel
+import javax.swing.JTextArea
 import javax.swing.table.AbstractTableModel
 
 class VerifyResultPanel : JPanel() {
@@ -20,6 +21,12 @@ class VerifyResultPanel : JPanel() {
     }
     private val stepsModel = StepsTableModel()
     private val stepsTable = JBTable(stepsModel)
+    private val stepDetailArea = JTextArea().apply {
+        isEditable = false
+        lineWrap = true
+        wrapStyleWord = true
+        font = Font(Font.MONOSPACED, Font.PLAIN, 12)
+    }
     private val summaryLabel = JBLabel("")
 
     init {
@@ -35,8 +42,39 @@ class VerifyResultPanel : JPanel() {
             preferredSize = Dimension(Int.MAX_VALUE, 200)
         }
 
+        val stepDetailScroll = JBScrollPane(stepDetailArea).apply {
+            border = BorderFactory.createTitledBorder("Step Output")
+            preferredSize = Dimension(Int.MAX_VALUE, 150)
+        }
+
+        stepsTable.selectionModel.addListSelectionListener { e ->
+            if (e.valueIsAdjusting) return@addListSelectionListener
+            val row = stepsTable.selectedRow
+            if (row < 0 || row >= stepsModel.data.size) {
+                stepDetailArea.text = ""
+                return@addListSelectionListener
+            }
+            val step = stepsModel.data[row]
+            val sb = StringBuilder()
+            sb.appendLine("Command: ${step.command}")
+            sb.appendLine("Exit code: ${step.exitCode}")
+            if (step.stdout.isNotBlank()) {
+                sb.appendLine()
+                sb.appendLine("--- stdout ---")
+                sb.appendLine(step.stdout)
+            }
+            if (step.stderr.isNotBlank()) {
+                sb.appendLine()
+                sb.appendLine("--- stderr ---")
+                sb.appendLine(step.stderr)
+            }
+            stepDetailArea.text = sb.toString()
+            stepDetailArea.caretPosition = 0
+        }
+
         add(bannerPanel)
         add(stepsScroll)
+        add(stepDetailScroll)
         add(summaryLabel)
     }
 
@@ -65,6 +103,7 @@ class VerifyResultPanel : JPanel() {
     fun clear() {
         bannerLabel.text = ""
         stepsModel.data = emptyList()
+        stepDetailArea.text = ""
         summaryLabel.text = ""
         revalidate()
         repaint()
