@@ -5,6 +5,7 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
+import com.intellij.openapi.vfs.LocalFileSystem
 import io.locklane.service.ResolverService
 
 class ApplyPlanAction : AnAction("Apply Plan", "Apply the plan (dry-run first)", AllIcons.Actions.Download) {
@@ -59,6 +60,7 @@ class ApplyPlanAction : AnAction("Apply Plan", "Apply the plan (dry-run first)",
                         "Locklane: Updates applied",
                         "${result.apply?.updatesApplied?.size ?: 0} package(s) updated",
                     )
+                    LocalFileSystem.getInstance().refreshAndFindFileByNioFile(manifest)
                 }
             }
 
