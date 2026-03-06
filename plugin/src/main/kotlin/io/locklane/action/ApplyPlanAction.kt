@@ -20,7 +20,7 @@ class ApplyPlanAction : AnAction("Apply Plan", "Apply the plan (dry-run first)",
         object : Task.Backgroundable(project, "Locklane: Applying plan (dry-run)...", true) {
             override fun run(indicator: ProgressIndicator) {
                 val service = ResolverService.getInstance(project)
-                val result = service.runApply(manifest, planJson, dryRun = true)
+                val result = service.runApply(manifest, planJson, dryRun = true, indicator = indicator)
                 com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
                     panel.setBusy(false)
                     panel.showApply(result) {
@@ -51,7 +51,7 @@ class ApplyPlanAction : AnAction("Apply Plan", "Apply the plan (dry-run first)",
         object : Task.Backgroundable(project, "Locklane: Applying plan...", true) {
             override fun run(indicator: ProgressIndicator) {
                 val service = ResolverService.getInstance(project)
-                val result = service.runApply(manifest, planJson, dryRun = false)
+                val result = service.runApply(manifest, planJson, dryRun = false, indicator = indicator)
                 com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
                     panel.setBusy(false)
                     panel.showApply(result) {}

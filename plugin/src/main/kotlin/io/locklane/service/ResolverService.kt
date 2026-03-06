@@ -3,6 +3,7 @@ package io.locklane.service
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.intellij.openapi.components.Service
+import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import io.locklane.model.ApplyResult
 import io.locklane.model.BaselineResult
@@ -20,34 +21,40 @@ class ResolverService(private val project: Project) {
 
     private val processRunner = ProcessRunner()
 
-    fun runBaseline(manifest: Path): BaselineResult {
-        val result = executeResolver("baseline", manifest)
+    fun runBaseline(manifest: Path, indicator: ProgressIndicator? = null): BaselineResult {
+        val result = executeResolver("baseline", manifest, indicator = indicator)
         return objectMapper.readValue(result.stdout, BaselineResult::class.java)
     }
 
-    fun runPlan(manifest: Path): UpgradePlan {
-        val result = executeResolver("plan", manifest)
+    fun runPlan(manifest: Path, indicator: ProgressIndicator? = null): UpgradePlan {
+        val result = executeResolver("plan", manifest, indicator = indicator)
         return objectMapper.readValue(result.stdout, UpgradePlan::class.java)
     }
 
-    fun runPlanRaw(manifest: Path): Pair<UpgradePlan, String> {
-        val result = executeResolver("plan", manifest)
+    fun runPlanRaw(manifest: Path, indicator: ProgressIndicator? = null): Pair<UpgradePlan, String> {
+        val result = executeResolver("plan", manifest, indicator = indicator)
         val plan = objectMapper.readValue(result.stdout, UpgradePlan::class.java)
         return Pair(plan, result.stdout)
     }
 
-    fun runVerifyPlan(manifest: Path, planJson: Path): VerificationReport {
+    fun runVerifyPlan(manifest: Path, planJson: Path, indicator: ProgressIndicator? = null): VerificationReport {
         val extraArgs = listOf("--plan-json", planJson.toString())
         val settings = LocklaneSettings.getInstance(project)
         val args = extraArgs.toMutableList()
         if (settings.state.verifyCommand.isNotBlank()) {
             args += listOf("--command", settings.state.verifyCommand)
         }
-        val result = executeResolver("verify-plan", manifest, args)
+        val result = executeResolver("verify-plan", manifest, args, indicator = indicator)
         return objectMapper.readValue(result.stdout, VerificationReport::class.java)
     }
 
-    fun runApply(manifest: Path, planJson: Path, output: Path? = null, dryRun: Boolean = false): ApplyResult {
+    fun runApply(
+        manifest: Path,
+        planJson: Path,
+        output: Path? = null,
+        dryRun: Boolean = false,
+        indicator: ProgressIndicator? = null,
+    ): ApplyResult {
         val args = mutableListOf("--plan-json", planJson.toString())
         if (output != null) {
             args += listOf("--output", output.toString())
@@ -55,7 +62,7 @@ class ResolverService(private val project: Project) {
         if (dryRun) {
             args += "--dry-run"
         }
-        val result = executeResolver("apply", manifest, args)
+        val result = executeResolver("apply", manifest, args, indicator = indicator)
         return objectMapper.readValue(result.stdout, ApplyResult::class.java)
     }
 
@@ -63,6 +70,7 @@ class ResolverService(private val project: Project) {
         command: String,
         manifest: Path,
         extraArgs: List<String> = emptyList(),
+        indicator: ProgressIndicator? = null,
     ): ProcessResult {
         val settings = LocklaneSettings.getInstance(project)
 
@@ -89,11 +97,12 @@ class ResolverService(private val project: Project) {
 
         val env = buildEnvironment(settings, pythonPath)
 
-        val result = processRunner.run(
+        val result = processRunner.runCancellable(
             command = cmd,
             workingDir = manifest.parent?.toFile(),
             environment = env,
             timeoutSeconds = settings.state.timeoutSeconds,
+            indicator = indicator,
         )
 
         if (result.exitCode != 0 && result.stdout.isBlank()) {

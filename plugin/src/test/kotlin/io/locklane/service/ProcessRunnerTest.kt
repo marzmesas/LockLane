@@ -1,5 +1,7 @@
 package io.locklane.service
 
+import com.intellij.openapi.progress.ProcessCanceledException
+import com.intellij.openapi.progress.ProgressIndicator
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -54,5 +56,42 @@ class ProcessRunnerTest {
         )
         assertEquals(0, result.exitCode)
         assertEquals("test_value\n", result.stdout)
+    }
+
+    @Test
+    @DisabledOnOs(OS.WINDOWS)
+    fun `cancellation destroys the subprocess`() {
+        val startTime = System.currentTimeMillis()
+        val indicator = object : ProgressIndicator {
+            override fun start() {}
+            override fun stop() {}
+            override fun isRunning(): Boolean = true
+            override fun cancel() {}
+            override fun isCanceled(): Boolean = System.currentTimeMillis() - startTime > 500
+            override fun setText(text: String?) {}
+            override fun getText(): String = ""
+            override fun setText2(text: String?) {}
+            override fun getText2(): String = ""
+            override fun getFraction(): Double = 0.0
+            override fun setFraction(fraction: Double) {}
+            override fun pushState() {}
+            override fun popState() {}
+            override fun isModal(): Boolean = false
+            override fun getModalityState() = com.intellij.openapi.application.ModalityState.nonModal()
+            override fun setModalityProgress(modalityProgress: ProgressIndicator?) {}
+            override fun isIndeterminate(): Boolean = true
+            override fun setIndeterminate(indeterminate: Boolean) {}
+            override fun checkCanceled() {}
+            override fun isPopupWasShown(): Boolean = false
+            override fun isShowing(): Boolean = false
+        }
+
+        assertThrows(ProcessCanceledException::class.java) {
+            runner.runCancellable(
+                command = listOf("sleep", "60"),
+                timeoutSeconds = 30,
+                indicator = indicator,
+            )
+        }
     }
 }

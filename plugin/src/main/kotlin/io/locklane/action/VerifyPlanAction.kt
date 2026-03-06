@@ -20,7 +20,7 @@ class VerifyPlanAction : AnAction("Verify Plan", "Verify the generated plan", Al
         object : Task.Backgroundable(project, "Locklane: Verifying plan...", true) {
             override fun run(indicator: ProgressIndicator) {
                 val service = ResolverService.getInstance(project)
-                val report = service.runVerifyPlan(manifest, planJson)
+                val report = service.runVerifyPlan(manifest, planJson, indicator)
                 com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
                     panel.setBusy(false)
                     panel.showVerification(report)

@@ -20,7 +20,7 @@ class RunPlanAction : AnAction("Run Plan", "Generate an upgrade plan", AllIcons.
         object : Task.Backgroundable(project, "Locklane: Generating plan...", true) {
             override fun run(indicator: ProgressIndicator) {
                 val service = ResolverService.getInstance(project)
-                val (plan, rawJson) = service.runPlanRaw(manifest)
+                val (plan, rawJson) = service.runPlanRaw(manifest, indicator)
                 val tempFile = Files.createTempFile("locklane-plan-", ".json")
                 Files.writeString(tempFile, rawJson)
                 com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
