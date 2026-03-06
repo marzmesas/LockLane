@@ -30,6 +30,12 @@ class ResolverService(private val project: Project) {
         return objectMapper.readValue(result.stdout, UpgradePlan::class.java)
     }
 
+    fun runPlanRaw(manifest: Path): Pair<UpgradePlan, String> {
+        val result = executeResolver("plan", manifest)
+        val plan = objectMapper.readValue(result.stdout, UpgradePlan::class.java)
+        return Pair(plan, result.stdout)
+    }
+
     fun runVerifyPlan(manifest: Path, planJson: Path): VerificationReport {
         val extraArgs = listOf("--plan-json", planJson.toString())
         val settings = LocklaneSettings.getInstance(project)
