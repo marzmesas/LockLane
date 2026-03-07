@@ -20,7 +20,9 @@ class VerifyResultPanel : JPanel() {
         font = font.deriveFont(Font.BOLD, 14f)
     }
     private val stepsModel = StepsTableModel()
-    private val stepsTable = JBTable(stepsModel)
+    private val stepsTable = JBTable(stepsModel).apply {
+        emptyText.text = "(no verification steps)"
+    }
     private val stepDetailArea = JTextArea().apply {
         isEditable = false
         lineWrap = true
@@ -89,6 +91,7 @@ class VerifyResultPanel : JPanel() {
                 bannerLabel.foreground = JBColor.RED
             }
             stepsModel.data = verification.steps
+            autoSizeColumns(stepsTable)
             summaryLabel.text = verification.summary
         } else {
             bannerLabel.text = "No verification data"
@@ -107,6 +110,23 @@ class VerifyResultPanel : JPanel() {
         summaryLabel.text = ""
         revalidate()
         repaint()
+    }
+
+    private fun autoSizeColumns(table: JBTable) {
+        val columnModel = table.columnModel
+        for (col in 0 until columnModel.columnCount) {
+            var maxWidth = table.tableHeader
+                ?.defaultRenderer
+                ?.getTableCellRendererComponent(table, table.getColumnName(col), false, false, -1, col)
+                ?.preferredSize?.width ?: 50
+            for (row in 0 until table.rowCount) {
+                val renderer = table.getCellRenderer(row, col)
+                val comp = table.prepareRenderer(renderer, row, col)
+                maxWidth = maxOf(maxWidth, comp.preferredSize.width)
+            }
+            columnModel.getColumn(col).preferredWidth = maxWidth + 16
+        }
+        table.autoResizeMode = JBTable.AUTO_RESIZE_LAST_COLUMN
     }
 
     private class StepsTableModel : AbstractTableModel() {

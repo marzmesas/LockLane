@@ -12,6 +12,7 @@ import io.locklane.model.VerificationReport
 import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.nio.file.Path
+import javax.swing.BorderFactory
 import javax.swing.BoxLayout
 import javax.swing.JPanel
 
@@ -29,6 +30,11 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
     private val planResultPanel = PlanResultPanel()
     private val verifyResultPanel = VerifyResultPanel()
     private val applyResultPanel = ApplyResultPanel()
+
+    private val footerLabel = JBLabel("").apply {
+        border = BorderFactory.createEmptyBorder(4, 8, 4, 8)
+        foreground = JBColor.GRAY
+    }
 
     init {
         name = "LocklanePanel"
@@ -50,6 +56,7 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
 
         add(headerPanel, BorderLayout.NORTH)
         add(cardPanel, BorderLayout.CENTER)
+        add(footerLabel, BorderLayout.SOUTH)
     }
 
     fun setManifest(path: Path) {
@@ -57,6 +64,7 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
         manifestLabel.text = path.fileName.toString()
         statusLabel.text = "Ready"
         statusLabel.foreground = JBColor.foreground()
+        footerLabel.text = ""
         planResultPanel.clear()
         verifyResultPanel.clear()
         applyResultPanel.clear()
@@ -68,6 +76,7 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
         planResultPanel.update(plan)
         statusLabel.text = "Plan generated — ${plan.safeUpdates.size} safe, ${plan.blockedUpdates.size} blocked"
         statusLabel.foreground = JBColor.foreground()
+        footerLabel.text = "Plan: ${plan.safeUpdates.size} safe, ${plan.blockedUpdates.size} blocked, ${plan.inconclusiveUpdates.size} inconclusive"
         cardLayout.show(cardPanel, CARD_PLAN)
     }
 
@@ -77,6 +86,9 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
         val passed = report.verification?.passed == true
         statusLabel.text = if (passed) "Verification passed" else "Verification failed"
         statusLabel.foreground = if (passed) JBColor.GREEN else JBColor.RED
+        val steps = report.verification?.steps ?: emptyList()
+        val passedCount = steps.count { it.passed }
+        footerLabel.text = "Verification: $passedCount/${steps.size} steps passed"
         cardLayout.show(cardPanel, CARD_VERIFY)
     }
 
@@ -85,12 +97,19 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
         applyResultPanel.update(result, onConfirmApply)
         statusLabel.text = if (result.dryRun) "Dry-run complete — review and confirm" else "Updates applied"
         statusLabel.foreground = JBColor.foreground()
+        val count = result.apply?.updatesApplied?.size ?: 0
+        footerLabel.text = if (result.dryRun) {
+            "Dry-run: $count update(s) previewed"
+        } else {
+            "Applied: $count update(s)"
+        }
         cardLayout.show(cardPanel, CARD_APPLY)
     }
 
     fun showError(title: String, message: String) {
         statusLabel.text = "$title: $message"
         statusLabel.foreground = JBColor.RED
+        footerLabel.text = ""
         try {
             NotificationGroupManager.getInstance()
                 .getNotificationGroup("Locklane")

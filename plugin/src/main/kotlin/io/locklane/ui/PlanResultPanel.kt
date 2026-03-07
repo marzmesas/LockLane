@@ -31,9 +31,15 @@ class PlanResultPanel : JPanel() {
         font = java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 12)
     }
 
-    private val safeTable = JBTable(safeModel)
-    private val blockedTable = JBTable(blockedModel)
-    private val inconclusiveTable = JBTable(inconclusiveModel)
+    private val safeTable = JBTable(safeModel).apply {
+        emptyText.text = "(no safe updates)"
+    }
+    private val blockedTable = JBTable(blockedModel).apply {
+        emptyText.text = "(no blocked updates)"
+    }
+    private val inconclusiveTable = JBTable(inconclusiveModel).apply {
+        emptyText.text = "(no inconclusive updates)"
+    }
 
     private val safeBorder = BorderFactory.createTitledBorder("Safe Updates (0)")
     private val blockedBorder = BorderFactory.createTitledBorder("Blocked Updates (0)")
@@ -102,6 +108,10 @@ class PlanResultPanel : JPanel() {
 
         stepsArea.text = plan.orderedSteps.joinToString("\n") { "${it.step}. ${it.description}" }
 
+        autoSizeColumns(safeTable)
+        autoSizeColumns(blockedTable)
+        autoSizeColumns(inconclusiveTable)
+
         revalidate()
         repaint()
     }
@@ -117,6 +127,23 @@ class PlanResultPanel : JPanel() {
         stepsArea.text = ""
         revalidate()
         repaint()
+    }
+
+    private fun autoSizeColumns(table: JBTable) {
+        val columnModel = table.columnModel
+        for (col in 0 until columnModel.columnCount) {
+            var maxWidth = table.tableHeader
+                ?.defaultRenderer
+                ?.getTableCellRendererComponent(table, table.getColumnName(col), false, false, -1, col)
+                ?.preferredSize?.width ?: 50
+            for (row in 0 until table.rowCount) {
+                val renderer = table.getCellRenderer(row, col)
+                val comp = table.prepareRenderer(renderer, row, col)
+                maxWidth = maxOf(maxWidth, comp.preferredSize.width)
+            }
+            columnModel.getColumn(col).preferredWidth = maxWidth + 16
+        }
+        table.autoResizeMode = JBTable.AUTO_RESIZE_LAST_COLUMN
     }
 
     private class SafeTableModel : AbstractTableModel() {

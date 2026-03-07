@@ -25,7 +25,9 @@ class ApplyResultPanel : JPanel() {
         font = Font("Monospaced", Font.PLAIN, 12)
     }
     private val updatesModel = UpdatesTableModel()
-    private val updatesTable = JBTable(updatesModel)
+    private val updatesTable = JBTable(updatesModel).apply {
+        emptyText.text = "(no updates applied)"
+    }
     private val confirmButton = JButton("Apply for Real").apply {
         isVisible = false
     }
@@ -77,6 +79,7 @@ class ApplyResultPanel : JPanel() {
         if (applyData != null) {
             patchArea.text = applyData.patchPreview
             updatesModel.data = applyData.updatesApplied
+            autoSizeColumns(updatesTable)
         } else {
             patchArea.text = ""
             updatesModel.data = emptyList()
@@ -94,6 +97,23 @@ class ApplyResultPanel : JPanel() {
         confirmButton.actionListeners.forEach { confirmButton.removeActionListener(it) }
         revalidate()
         repaint()
+    }
+
+    private fun autoSizeColumns(table: JBTable) {
+        val columnModel = table.columnModel
+        for (col in 0 until columnModel.columnCount) {
+            var maxWidth = table.tableHeader
+                ?.defaultRenderer
+                ?.getTableCellRendererComponent(table, table.getColumnName(col), false, false, -1, col)
+                ?.preferredSize?.width ?: 50
+            for (row in 0 until table.rowCount) {
+                val renderer = table.getCellRenderer(row, col)
+                val comp = table.prepareRenderer(renderer, row, col)
+                maxWidth = maxOf(maxWidth, comp.preferredSize.width)
+            }
+            columnModel.getColumn(col).preferredWidth = maxWidth + 16
+        }
+        table.autoResizeMode = JBTable.AUTO_RESIZE_LAST_COLUMN
     }
 
     private class UpdatesTableModel : AbstractTableModel() {
