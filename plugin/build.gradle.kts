@@ -47,6 +47,28 @@ tasks {
     }
 
     test {
-        useJUnitPlatform()
+        useJUnitPlatform {
+            excludeTags("integration")
+        }
+    }
+
+    val integrationTest by registering(Test::class) {
+        group = "verification"
+        description = "Runs integration tests requiring Python + resolver"
+        notCompatibleWithConfigurationCache("references test task jvmArgumentProviders")
+        val mainTest = test.get()
+        testClassesDirs = mainTest.testClassesDirs
+        classpath = mainTest.classpath
+        jvmArgumentProviders.addAll(mainTest.jvmArgumentProviders)
+        executable = mainTest.executable
+        dependsOn("prepareTest")
+        useJUnitPlatform {
+            includeTags("integration")
+        }
+        systemProperty(
+            "locklane.resolver.src",
+            System.getProperty("locklane.resolver.src")
+                ?: "${project.rootDir}/../resolver/src",
+        )
     }
 }
