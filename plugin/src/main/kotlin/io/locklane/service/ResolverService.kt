@@ -106,8 +106,9 @@ class ResolverService(private val project: Project) {
         )
 
         if (result.exitCode != 0 && result.stdout.isBlank()) {
+            val detail = result.stderr.lines().take(10).joinToString("\n").ifBlank { "(no stderr)" }
             throw ResolverException(
-                "Resolver command '$command' failed with exit code ${result.exitCode}",
+                "Resolver command '$command' failed (exit code ${result.exitCode}):\n$detail",
                 exitCode = result.exitCode,
                 stderr = result.stderr,
             )
@@ -147,10 +148,15 @@ class ResolverService(private val project: Project) {
     }
 
     private fun resolveResolverSourcePath(settings: LocklaneSettings): String? {
+        // 1. Explicit user override
         if (settings.state.resolverSourcePath.isNotBlank()) {
             return settings.state.resolverSourcePath
         }
-        // Auto-detect: look for resolver/src relative to project base
+        // 2. Bundled resolver (primary for end users)
+        ResolverBundleExtractor.extractBundledResolver()?.let {
+            return it.toString()
+        }
+        // 3. Dev fallback: resolver/src next to project
         val basePath = project.basePath ?: return null
         val candidate = File(basePath, "resolver/src")
         return if (candidate.isDirectory) candidate.absolutePath else null

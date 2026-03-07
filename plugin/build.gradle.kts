@@ -41,6 +41,34 @@ intellijPlatform {
     }
 }
 
+val syncResolver by tasks.registering(Sync::class) {
+    from("${project.rootDir}/../resolver/src/locklane_resolver") {
+        include("**/*.py")
+        exclude("__pycache__/**")
+    }
+    into(layout.buildDirectory.dir("generated-resources/bundled_resolver/locklane_resolver"))
+}
+
+val generateResolverManifest by tasks.registering {
+    dependsOn(syncResolver)
+    val outputDir = layout.buildDirectory.dir("generated-resources/bundled_resolver")
+    outputs.dir(outputDir)
+    doLast {
+        val dir = outputDir.get().asFile.resolve("locklane_resolver")
+        val manifest = outputDir.get().asFile.resolve("manifest.txt")
+        val files = dir.walkTopDown()
+            .filter { it.isFile && it.extension == "py" }
+            .map { it.relativeTo(dir).path }
+            .sorted()
+            .joinToString("\n")
+        manifest.writeText(files)
+    }
+}
+
+sourceSets.main {
+    resources.srcDir(generateResolverManifest.map { layout.buildDirectory.dir("generated-resources") })
+}
+
 tasks {
     runIde {
         jvmArgs("-Xmx2g")

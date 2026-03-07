@@ -35,7 +35,7 @@ class LocklaneConfigurable(private val project: Project) : BoundConfigurable("Lo
             row("Resolver source path:") {
                 textField()
                     .bindText(settings.state::resolverSourcePath)
-                    .comment("Path to resolver/src for PYTHONPATH. Leave empty for auto-detection.")
+                    .comment("Override bundled resolver with a local path (for development). Leave empty to use bundled.")
                     .align(AlignX.FILL)
             }
         }
