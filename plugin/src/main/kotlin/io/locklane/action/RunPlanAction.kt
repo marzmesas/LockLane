@@ -19,6 +19,8 @@ class RunPlanAction : AnAction("Run Plan", "Generate an upgrade plan", AllIcons.
 
         object : Task.Backgroundable(project, "Locklane: Generating plan...", true) {
             override fun run(indicator: ProgressIndicator) {
+                indicator.isIndeterminate = true
+                indicator.text = "Resolving dependencies and simulating candidates..."
                 val service = ResolverService.getInstance(project)
                 val (plan, rawJson) = service.runPlanRaw(manifest, indicator)
                 val tempFile = Files.createTempFile("locklane-plan-", ".json")
