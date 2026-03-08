@@ -1,26 +1,32 @@
 package io.locklane.ui
 
 import com.intellij.ui.JBColor
+import com.intellij.ui.TitledSeparator
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
 import io.locklane.model.ApplyResult
 import io.locklane.model.SafeUpdate
+import java.awt.Color
 import java.awt.Dimension
 import java.awt.Font
 import javax.swing.BorderFactory
 import javax.swing.BoxLayout
 import javax.swing.JButton
+import javax.swing.JComponent
 import javax.swing.JPanel
-import javax.swing.JTextArea
+import javax.swing.JTextPane
 import javax.swing.table.AbstractTableModel
+import javax.swing.text.SimpleAttributeSet
+import javax.swing.text.StyleConstants
 
 class ApplyResultPanel : JPanel() {
 
     private val modeBadge = JBLabel("").apply {
         font = font.deriveFont(Font.BOLD, 14f)
+        border = BorderFactory.createEmptyBorder(4, 0, 4, 0)
     }
-    private val patchArea = JTextArea().apply {
+    private val patchPane = JTextPane().apply {
         isEditable = false
         font = Font("Monospaced", Font.PLAIN, 12)
     }
@@ -32,40 +38,29 @@ class ApplyResultPanel : JPanel() {
         isVisible = false
     }
 
+    private val patchSeparator = TitledSeparator("Patch Preview")
+    private val updatesSeparator = TitledSeparator("Updates Applied")
+
+    private val patchScroll = JBScrollPane(patchPane)
+    private val updatesScroll = JBScrollPane(updatesTable)
+
+    private val patchSection = section(patchSeparator, patchScroll)
+    private val updatesSection = section(updatesSeparator, updatesScroll)
+
+    private val buttonPanel = JPanel().apply {
+        layout = BoxLayout(this, BoxLayout.X_AXIS)
+        add(confirmButton)
+        alignmentX = LEFT_ALIGNMENT
+    }
+
     init {
         layout = BoxLayout(this, BoxLayout.Y_AXIS)
 
-        val badgePanel = JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.X_AXIS)
-            add(modeBadge)
-            alignmentX = LEFT_ALIGNMENT
-        }
+        modeBadge.alignmentX = LEFT_ALIGNMENT
 
-        val patchScroll = JBScrollPane(patchArea).apply {
-            border = BorderFactory.createTitledBorder("Patch Preview")
-            minimumSize = Dimension(0, 200)
-            preferredSize = Dimension(100, 200)
-            maximumSize = Dimension(Int.MAX_VALUE, 200)
-            alignmentX = LEFT_ALIGNMENT
-        }
-
-        val updatesScroll = JBScrollPane(updatesTable).apply {
-            border = BorderFactory.createTitledBorder("Updates Applied")
-            minimumSize = Dimension(0, 150)
-            preferredSize = Dimension(100, 150)
-            maximumSize = Dimension(Int.MAX_VALUE, 150)
-            alignmentX = LEFT_ALIGNMENT
-        }
-
-        val buttonPanel = JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.X_AXIS)
-            add(confirmButton)
-            alignmentX = LEFT_ALIGNMENT
-        }
-
-        add(badgePanel)
-        add(patchScroll)
-        add(updatesScroll)
+        add(modeBadge)
+        add(patchSection)
+        add(updatesSection)
         add(buttonPanel)
     }
 
@@ -74,7 +69,6 @@ class ApplyResultPanel : JPanel() {
             modeBadge.text = "DRY RUN"
             modeBadge.foreground = JBColor.ORANGE
             confirmButton.isVisible = true
-            // Remove previous listeners before adding new one
             confirmButton.actionListeners.forEach { confirmButton.removeActionListener(it) }
             confirmButton.addActionListener { onConfirmApply() }
         } else {
@@ -85,12 +79,25 @@ class ApplyResultPanel : JPanel() {
 
         val applyData = result.apply
         if (applyData != null) {
-            patchArea.text = applyData.patchPreview
+            renderDiff(applyData.patchPreview)
             updatesModel.data = applyData.updatesApplied
             autoSizeColumns(updatesTable)
+
+            patchSection.isVisible = applyData.patchPreview.isNotBlank()
+            patchPane.caretPosition = 0
+            updatesSection.isVisible = applyData.updatesApplied.isNotEmpty()
+
+            // Size updates table to content
+            val rows = minOf(applyData.updatesApplied.size, 20)
+            val height = rows * updatesTable.rowHeight + TABLE_HEADER_HEIGHT + TABLE_PADDING
+            updatesScroll.minimumSize = Dimension(0, TABLE_HEADER_HEIGHT)
+            updatesScroll.preferredSize = Dimension(100, height)
+            updatesScroll.maximumSize = Dimension(Int.MAX_VALUE, height)
         } else {
-            patchArea.text = ""
+            patchPane.text = ""
             updatesModel.data = emptyList()
+            patchSection.isVisible = false
+            updatesSection.isVisible = false
         }
 
         revalidate()
@@ -99,12 +106,41 @@ class ApplyResultPanel : JPanel() {
 
     fun clear() {
         modeBadge.text = ""
-        patchArea.text = ""
+        patchPane.text = ""
         updatesModel.data = emptyList()
         confirmButton.isVisible = false
         confirmButton.actionListeners.forEach { confirmButton.removeActionListener(it) }
+        patchSection.isVisible = false
+        updatesSection.isVisible = false
         revalidate()
         repaint()
+    }
+
+    private fun renderDiff(patch: String) {
+        val doc = patchPane.styledDocument
+        doc.remove(0, doc.length)
+
+        val addAttrs = SimpleAttributeSet().apply {
+            StyleConstants.setForeground(this, Color(80, 200, 80))
+        }
+        val removeAttrs = SimpleAttributeSet().apply {
+            StyleConstants.setForeground(this, Color(220, 80, 80))
+        }
+        val defaultAttrs = SimpleAttributeSet()
+
+        val lines = patch.lines().filter { line ->
+            !line.startsWith("@@") && !line.startsWith("---") && !line.startsWith("+++")
+        }
+
+        for ((i, line) in lines.withIndex()) {
+            val attrs = when {
+                line.startsWith("+") -> addAttrs
+                line.startsWith("-") -> removeAttrs
+                else -> defaultAttrs
+            }
+            if (i > 0) doc.insertString(doc.length, "\n", defaultAttrs)
+            doc.insertString(doc.length, line, attrs)
+        }
     }
 
     private fun autoSizeColumns(table: JBTable) {
@@ -141,6 +177,26 @@ class ApplyResultPanel : JPanel() {
             1 -> data[row].fromVersion
             2 -> data[row].toVersion
             else -> ""
+        }
+    }
+
+    companion object {
+        private const val TABLE_HEADER_HEIGHT = 28
+        private const val TABLE_PADDING = 4
+
+        private fun section(separator: TitledSeparator, content: JComponent): JPanel {
+            return JPanel().apply {
+                layout = BoxLayout(this, BoxLayout.Y_AXIS)
+                alignmentX = LEFT_ALIGNMENT
+                separator.alignmentX = LEFT_ALIGNMENT
+                content.alignmentX = LEFT_ALIGNMENT
+                separator.maximumSize = Dimension(Int.MAX_VALUE, separator.preferredSize.height)
+                content.minimumSize = Dimension(0, 40)
+                content.preferredSize = Dimension(100, 200)
+                content.maximumSize = Dimension(Int.MAX_VALUE, 200)
+                add(separator)
+                add(content)
+            }
         }
     }
 }

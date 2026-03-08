@@ -1,5 +1,6 @@
 package io.locklane.ui
 
+import com.intellij.ui.TitledSeparator
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
 import io.locklane.model.BlockedUpdate
@@ -7,8 +8,9 @@ import io.locklane.model.InconclusiveUpdate
 import io.locklane.model.SafeUpdate
 import io.locklane.model.UpgradePlan
 import java.awt.Dimension
-import javax.swing.BorderFactory
+import java.awt.Font
 import javax.swing.BoxLayout
+import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.JTextArea
 import javax.swing.table.AbstractTableModel
@@ -22,13 +24,14 @@ class PlanResultPanel : JPanel() {
         isEditable = false
         lineWrap = true
         wrapStyleWord = true
+        font = Font(Font.MONOSPACED, Font.PLAIN, 12)
     }
 
     private val chainDetailArea = JTextArea().apply {
         isEditable = false
         lineWrap = true
         wrapStyleWord = true
-        font = java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 12)
+        font = Font(Font.MONOSPACED, Font.PLAIN, 12)
     }
 
     private val safeTable = JBTable(safeModel).apply {
@@ -41,48 +44,26 @@ class PlanResultPanel : JPanel() {
         emptyText.text = "(no inconclusive updates)"
     }
 
-    private val safeBorder = BorderFactory.createTitledBorder("Safe Updates (0)")
-    private val blockedBorder = BorderFactory.createTitledBorder("Blocked Updates (0)")
-    private val inconclusiveBorder = BorderFactory.createTitledBorder("Inconclusive Updates (0)")
+    private val safeSeparator = TitledSeparator("Safe Updates")
+    private val blockedSeparator = TitledSeparator("Blocked Updates")
+    private val chainSeparator = TitledSeparator("Conflict Chain")
+    private val inconclusiveSeparator = TitledSeparator("Inconclusive Updates")
+    private val stepsSeparator = TitledSeparator("Ordered Steps")
+
+    private val safeScroll = JBScrollPane(safeTable)
+    private val blockedScroll = JBScrollPane(blockedTable)
+    private val chainScroll = JBScrollPane(chainDetailArea)
+    private val inconclusiveScroll = JBScrollPane(inconclusiveTable)
+    private val stepsScroll = JBScrollPane(stepsArea)
+
+    private val safeSection = section(safeSeparator, safeScroll)
+    private val blockedSection = section(blockedSeparator, blockedScroll)
+    private val chainSection = section(chainSeparator, chainScroll)
+    private val inconclusiveSection = section(inconclusiveSeparator, inconclusiveScroll)
+    private val stepsSection = section(stepsSeparator, stepsScroll)
 
     init {
         layout = BoxLayout(this, BoxLayout.Y_AXIS)
-
-        val safeScroll = JBScrollPane(safeTable).apply {
-            border = safeBorder
-            minimumSize = Dimension(0, 150)
-            preferredSize = Dimension(100, 150)
-            maximumSize = Dimension(Int.MAX_VALUE, 150)
-            alignmentX = LEFT_ALIGNMENT
-        }
-        val blockedScroll = JBScrollPane(blockedTable).apply {
-            border = blockedBorder
-            minimumSize = Dimension(0, 150)
-            preferredSize = Dimension(100, 150)
-            maximumSize = Dimension(Int.MAX_VALUE, 150)
-            alignmentX = LEFT_ALIGNMENT
-        }
-        val inconclusiveScroll = JBScrollPane(inconclusiveTable).apply {
-            border = inconclusiveBorder
-            minimumSize = Dimension(0, 150)
-            preferredSize = Dimension(100, 150)
-            maximumSize = Dimension(Int.MAX_VALUE, 150)
-            alignmentX = LEFT_ALIGNMENT
-        }
-        val chainDetailScroll = JBScrollPane(chainDetailArea).apply {
-            border = BorderFactory.createTitledBorder("Conflict Chain")
-            minimumSize = Dimension(0, 120)
-            preferredSize = Dimension(100, 120)
-            maximumSize = Dimension(Int.MAX_VALUE, 120)
-            alignmentX = LEFT_ALIGNMENT
-        }
-        val stepsScroll = JBScrollPane(stepsArea).apply {
-            border = BorderFactory.createTitledBorder("Ordered Steps")
-            minimumSize = Dimension(0, 120)
-            preferredSize = Dimension(100, 120)
-            maximumSize = Dimension(Int.MAX_VALUE, 120)
-            alignmentX = LEFT_ALIGNMENT
-        }
 
         blockedTable.selectionModel.addListSelectionListener { e ->
             if (e.valueIsAdjusting) return@addListSelectionListener
@@ -105,11 +86,11 @@ class PlanResultPanel : JPanel() {
             chainDetailArea.caretPosition = 0
         }
 
-        add(safeScroll)
-        add(blockedScroll)
-        add(chainDetailScroll)
-        add(inconclusiveScroll)
-        add(stepsScroll)
+        add(safeSection)
+        add(blockedSection)
+        add(chainSection)
+        add(inconclusiveSection)
+        add(stepsSection)
     }
 
     fun update(plan: UpgradePlan) {
@@ -117,15 +98,29 @@ class PlanResultPanel : JPanel() {
         blockedModel.data = plan.blockedUpdates
         inconclusiveModel.data = plan.inconclusiveUpdates
 
-        safeBorder.title = "Safe Updates (${plan.safeUpdates.size})"
-        blockedBorder.title = "Blocked Updates (${plan.blockedUpdates.size})"
-        inconclusiveBorder.title = "Inconclusive Updates (${plan.inconclusiveUpdates.size})"
+        safeSeparator.text = "Safe Updates (${plan.safeUpdates.size})"
+        blockedSeparator.text = "Blocked Updates (${plan.blockedUpdates.size})"
+        inconclusiveSeparator.text = "Inconclusive Updates (${plan.inconclusiveUpdates.size})"
 
         stepsArea.text = plan.orderedSteps.joinToString("\n") { "${it.step}. ${it.description}" }
 
         autoSizeColumns(safeTable)
         autoSizeColumns(blockedTable)
         autoSizeColumns(inconclusiveTable)
+
+        // Show/hide sections based on content
+        safeSection.isVisible = plan.safeUpdates.isNotEmpty()
+        blockedSection.isVisible = plan.blockedUpdates.isNotEmpty()
+        chainSection.isVisible = plan.blockedUpdates.isNotEmpty()
+        inconclusiveSection.isVisible = plan.inconclusiveUpdates.isNotEmpty()
+        stepsSection.isVisible = plan.orderedSteps.isNotEmpty()
+
+        // Size tables to content
+        sizeToContent(safeScroll, safeTable, maxRows = 20)
+        sizeToContent(blockedScroll, blockedTable, maxRows = 10)
+        sizeToContent(inconclusiveScroll, inconclusiveTable, maxRows = 10)
+        sizeToContent(chainScroll, maxHeight = 120)
+        sizeToContent(stepsScroll, maxHeight = 200)
 
         revalidate()
         repaint()
@@ -135,11 +130,16 @@ class PlanResultPanel : JPanel() {
         safeModel.data = emptyList()
         blockedModel.data = emptyList()
         inconclusiveModel.data = emptyList()
-        safeBorder.title = "Safe Updates (0)"
-        blockedBorder.title = "Blocked Updates (0)"
-        inconclusiveBorder.title = "Inconclusive Updates (0)"
+        safeSeparator.text = "Safe Updates"
+        blockedSeparator.text = "Blocked Updates"
+        inconclusiveSeparator.text = "Inconclusive Updates"
         chainDetailArea.text = ""
         stepsArea.text = ""
+        safeSection.isVisible = false
+        blockedSection.isVisible = false
+        chainSection.isVisible = false
+        inconclusiveSection.isVisible = false
+        stepsSection.isVisible = false
         revalidate()
         repaint()
     }
@@ -218,6 +218,37 @@ class PlanResultPanel : JPanel() {
             1 -> data[row].targetVersion
             2 -> data[row].reason
             else -> ""
+        }
+    }
+
+    companion object {
+        private const val TABLE_HEADER_HEIGHT = 28
+        private const val TABLE_PADDING = 4
+
+        private fun section(separator: TitledSeparator, content: JComponent): JPanel {
+            return JPanel().apply {
+                layout = BoxLayout(this, BoxLayout.Y_AXIS)
+                alignmentX = LEFT_ALIGNMENT
+                separator.alignmentX = LEFT_ALIGNMENT
+                content.alignmentX = LEFT_ALIGNMENT
+                separator.maximumSize = Dimension(Int.MAX_VALUE, separator.preferredSize.height)
+                add(separator)
+                add(content)
+            }
+        }
+
+        private fun sizeToContent(scroll: JBScrollPane, table: JBTable, maxRows: Int) {
+            val rows = minOf(table.rowCount, maxRows)
+            val height = rows * table.rowHeight + TABLE_HEADER_HEIGHT + TABLE_PADDING
+            scroll.minimumSize = Dimension(0, TABLE_HEADER_HEIGHT)
+            scroll.preferredSize = Dimension(100, height)
+            scroll.maximumSize = Dimension(Int.MAX_VALUE, height)
+        }
+
+        private fun sizeToContent(scroll: JBScrollPane, maxHeight: Int) {
+            scroll.minimumSize = Dimension(0, 40)
+            scroll.preferredSize = Dimension(100, maxHeight)
+            scroll.maximumSize = Dimension(Int.MAX_VALUE, maxHeight)
         }
     }
 }

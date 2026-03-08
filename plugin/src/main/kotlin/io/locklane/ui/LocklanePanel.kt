@@ -11,6 +11,7 @@ import io.locklane.model.UpgradePlan
 import io.locklane.model.VerificationReport
 import java.awt.BorderLayout
 import java.awt.CardLayout
+import java.awt.FlowLayout
 import java.nio.file.Path
 import javax.swing.BorderFactory
 import javax.swing.BoxLayout
@@ -41,12 +42,14 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
 
         val headerPanel = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            add(JPanel().apply {
-                layout = BoxLayout(this, BoxLayout.X_AXIS)
+            border = BorderFactory.createEmptyBorder(2, 4, 2, 4)
+            add(JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
                 add(JBLabel("Manifest: "))
                 add(manifestLabel)
             })
-            add(statusLabel)
+            add(JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
+                add(statusLabel)
+            })
         }
 
         cardPanel.add(emptyPanel, CARD_EMPTY)

@@ -1,6 +1,7 @@
 package io.locklane.ui
 
 import com.intellij.ui.JBColor
+import com.intellij.ui.TitledSeparator
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
@@ -10,6 +11,7 @@ import java.awt.Dimension
 import java.awt.Font
 import javax.swing.BorderFactory
 import javax.swing.BoxLayout
+import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.JTextArea
 import javax.swing.table.AbstractTableModel
@@ -18,6 +20,7 @@ class VerifyResultPanel : JPanel() {
 
     private val bannerLabel = JBLabel("").apply {
         font = font.deriveFont(Font.BOLD, 14f)
+        border = BorderFactory.createEmptyBorder(4, 0, 4, 0)
     }
     private val stepsModel = StepsTableModel()
     private val stepsTable = JBTable(stepsModel).apply {
@@ -29,38 +32,29 @@ class VerifyResultPanel : JPanel() {
         wrapStyleWord = true
         font = Font(Font.MONOSPACED, Font.PLAIN, 12)
     }
-    private val summaryLabel = JBLabel("")
+    private val summaryLabel = JBLabel("").apply {
+        border = BorderFactory.createEmptyBorder(4, 0, 4, 0)
+    }
+
+    private val stepsSeparator = TitledSeparator("Verification Steps")
+    private val detailSeparator = TitledSeparator("Step Output")
+
+    private val stepsScroll = JBScrollPane(stepsTable)
+    private val detailScroll = JBScrollPane(stepDetailArea)
+
+    private val stepsSection = section(stepsSeparator, stepsScroll)
+    private val detailSection = section(detailSeparator, detailScroll)
 
     init {
         layout = BoxLayout(this, BoxLayout.Y_AXIS)
-
-        val bannerPanel = JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.X_AXIS)
-            add(bannerLabel)
-            alignmentX = LEFT_ALIGNMENT
-        }
-
-        val stepsScroll = JBScrollPane(stepsTable).apply {
-            border = BorderFactory.createTitledBorder("Verification Steps")
-            minimumSize = Dimension(0, 200)
-            preferredSize = Dimension(100, 200)
-            maximumSize = Dimension(Int.MAX_VALUE, 200)
-            alignmentX = LEFT_ALIGNMENT
-        }
-
-        val stepDetailScroll = JBScrollPane(stepDetailArea).apply {
-            border = BorderFactory.createTitledBorder("Step Output")
-            minimumSize = Dimension(0, 150)
-            preferredSize = Dimension(100, 150)
-            maximumSize = Dimension(Int.MAX_VALUE, 150)
-            alignmentX = LEFT_ALIGNMENT
-        }
 
         stepsTable.selectionModel.addListSelectionListener { e ->
             if (e.valueIsAdjusting) return@addListSelectionListener
             val row = stepsTable.selectedRow
             if (row < 0 || row >= stepsModel.data.size) {
                 stepDetailArea.text = ""
+                detailSection.isVisible = false
+                revalidate()
                 return@addListSelectionListener
             }
             val step = stepsModel.data[row]
@@ -79,13 +73,16 @@ class VerifyResultPanel : JPanel() {
             }
             stepDetailArea.text = sb.toString()
             stepDetailArea.caretPosition = 0
+            detailSection.isVisible = true
+            revalidate()
         }
 
+        bannerLabel.alignmentX = LEFT_ALIGNMENT
         summaryLabel.alignmentX = LEFT_ALIGNMENT
 
-        add(bannerPanel)
-        add(stepsScroll)
-        add(stepDetailScroll)
+        add(bannerLabel)
+        add(stepsSection)
+        add(detailSection)
         add(summaryLabel)
     }
 
@@ -102,11 +99,22 @@ class VerifyResultPanel : JPanel() {
             stepsModel.data = verification.steps
             autoSizeColumns(stepsTable)
             summaryLabel.text = verification.summary
+
+            stepsSection.isVisible = verification.steps.isNotEmpty()
+            detailSection.isVisible = false // shown on row selection
+
+            val rows = minOf(verification.steps.size, 10)
+            val height = rows * stepsTable.rowHeight + TABLE_HEADER_HEIGHT + TABLE_PADDING
+            stepsScroll.minimumSize = Dimension(0, TABLE_HEADER_HEIGHT)
+            stepsScroll.preferredSize = Dimension(100, height)
+            stepsScroll.maximumSize = Dimension(Int.MAX_VALUE, height)
         } else {
             bannerLabel.text = "No verification data"
             bannerLabel.foreground = JBColor.GRAY
             stepsModel.data = emptyList()
             summaryLabel.text = ""
+            stepsSection.isVisible = false
+            detailSection.isVisible = false
         }
         revalidate()
         repaint()
@@ -117,6 +125,8 @@ class VerifyResultPanel : JPanel() {
         stepsModel.data = emptyList()
         stepDetailArea.text = ""
         summaryLabel.text = ""
+        stepsSection.isVisible = false
+        detailSection.isVisible = false
         revalidate()
         repaint()
     }
@@ -155,6 +165,26 @@ class VerifyResultPanel : JPanel() {
             1 -> if (data[row].passed) "Yes" else "No"
             2 -> "%.1fs".format(data[row].durationSeconds)
             else -> ""
+        }
+    }
+
+    companion object {
+        private const val TABLE_HEADER_HEIGHT = 28
+        private const val TABLE_PADDING = 4
+
+        private fun section(separator: TitledSeparator, content: JComponent): JPanel {
+            return JPanel().apply {
+                layout = BoxLayout(this, BoxLayout.Y_AXIS)
+                alignmentX = LEFT_ALIGNMENT
+                separator.alignmentX = LEFT_ALIGNMENT
+                content.alignmentX = LEFT_ALIGNMENT
+                separator.maximumSize = Dimension(Int.MAX_VALUE, separator.preferredSize.height)
+                content.minimumSize = Dimension(0, 40)
+                content.preferredSize = Dimension(100, 150)
+                content.maximumSize = Dimension(Int.MAX_VALUE, 200)
+                add(separator)
+                add(content)
+            }
         }
     }
 }
