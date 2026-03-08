@@ -37,16 +37,23 @@ class VerifyResultPanel : JPanel() {
         val bannerPanel = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.X_AXIS)
             add(bannerLabel)
+            alignmentX = LEFT_ALIGNMENT
         }
 
         val stepsScroll = JBScrollPane(stepsTable).apply {
             border = BorderFactory.createTitledBorder("Verification Steps")
-            preferredSize = Dimension(Int.MAX_VALUE, 200)
+            minimumSize = Dimension(0, 200)
+            preferredSize = Dimension(100, 200)
+            maximumSize = Dimension(Int.MAX_VALUE, 200)
+            alignmentX = LEFT_ALIGNMENT
         }
 
         val stepDetailScroll = JBScrollPane(stepDetailArea).apply {
             border = BorderFactory.createTitledBorder("Step Output")
-            preferredSize = Dimension(Int.MAX_VALUE, 150)
+            minimumSize = Dimension(0, 150)
+            preferredSize = Dimension(100, 150)
+            maximumSize = Dimension(Int.MAX_VALUE, 150)
+            alignmentX = LEFT_ALIGNMENT
         }
 
         stepsTable.selectionModel.addListSelectionListener { e ->
@@ -73,6 +80,8 @@ class VerifyResultPanel : JPanel() {
             stepDetailArea.text = sb.toString()
             stepDetailArea.caretPosition = 0
         }
+
+        summaryLabel.alignmentX = LEFT_ALIGNMENT
 
         add(bannerPanel)
         add(stepsScroll)

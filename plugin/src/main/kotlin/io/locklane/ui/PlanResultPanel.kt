@@ -50,23 +50,38 @@ class PlanResultPanel : JPanel() {
 
         val safeScroll = JBScrollPane(safeTable).apply {
             border = safeBorder
-            preferredSize = Dimension(Int.MAX_VALUE, 150)
+            minimumSize = Dimension(0, 150)
+            preferredSize = Dimension(100, 150)
+            maximumSize = Dimension(Int.MAX_VALUE, 150)
+            alignmentX = LEFT_ALIGNMENT
         }
         val blockedScroll = JBScrollPane(blockedTable).apply {
             border = blockedBorder
-            preferredSize = Dimension(Int.MAX_VALUE, 150)
+            minimumSize = Dimension(0, 150)
+            preferredSize = Dimension(100, 150)
+            maximumSize = Dimension(Int.MAX_VALUE, 150)
+            alignmentX = LEFT_ALIGNMENT
         }
         val inconclusiveScroll = JBScrollPane(inconclusiveTable).apply {
             border = inconclusiveBorder
-            preferredSize = Dimension(Int.MAX_VALUE, 150)
+            minimumSize = Dimension(0, 150)
+            preferredSize = Dimension(100, 150)
+            maximumSize = Dimension(Int.MAX_VALUE, 150)
+            alignmentX = LEFT_ALIGNMENT
         }
         val chainDetailScroll = JBScrollPane(chainDetailArea).apply {
             border = BorderFactory.createTitledBorder("Conflict Chain")
-            preferredSize = Dimension(Int.MAX_VALUE, 120)
+            minimumSize = Dimension(0, 120)
+            preferredSize = Dimension(100, 120)
+            maximumSize = Dimension(Int.MAX_VALUE, 120)
+            alignmentX = LEFT_ALIGNMENT
         }
         val stepsScroll = JBScrollPane(stepsArea).apply {
             border = BorderFactory.createTitledBorder("Ordered Steps")
-            preferredSize = Dimension(Int.MAX_VALUE, 120)
+            minimumSize = Dimension(0, 120)
+            preferredSize = Dimension(100, 120)
+            maximumSize = Dimension(Int.MAX_VALUE, 120)
+            alignmentX = LEFT_ALIGNMENT
         }
 
         blockedTable.selectionModel.addListSelectionListener { e ->

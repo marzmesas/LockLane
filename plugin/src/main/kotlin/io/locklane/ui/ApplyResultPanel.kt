@@ -38,21 +38,29 @@ class ApplyResultPanel : JPanel() {
         val badgePanel = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.X_AXIS)
             add(modeBadge)
+            alignmentX = LEFT_ALIGNMENT
         }
 
         val patchScroll = JBScrollPane(patchArea).apply {
             border = BorderFactory.createTitledBorder("Patch Preview")
-            preferredSize = Dimension(Int.MAX_VALUE, 200)
+            minimumSize = Dimension(0, 200)
+            preferredSize = Dimension(100, 200)
+            maximumSize = Dimension(Int.MAX_VALUE, 200)
+            alignmentX = LEFT_ALIGNMENT
         }
 
         val updatesScroll = JBScrollPane(updatesTable).apply {
             border = BorderFactory.createTitledBorder("Updates Applied")
-            preferredSize = Dimension(Int.MAX_VALUE, 150)
+            minimumSize = Dimension(0, 150)
+            preferredSize = Dimension(100, 150)
+            maximumSize = Dimension(Int.MAX_VALUE, 150)
+            alignmentX = LEFT_ALIGNMENT
         }
 
         val buttonPanel = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.X_AXIS)
             add(confirmButton)
+            alignmentX = LEFT_ALIGNMENT
         }
 
         add(badgePanel)
