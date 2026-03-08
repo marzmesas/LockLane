@@ -79,6 +79,8 @@ class ResolverService(private val project: Project) {
             projectBasePath = project.basePath,
         ) ?: throw ResolverException("No Python interpreter found. Configure one in Settings > Tools > Locklane.")
 
+        checkResolverToolAvailable(settings.state.resolverPreference)
+
         val cmd = mutableListOf(
             pythonPath, "-m", "locklane_resolver",
             command,
@@ -160,6 +162,23 @@ class ResolverService(private val project: Project) {
         val basePath = project.basePath ?: return null
         val candidate = File(basePath, "resolver/src")
         return if (candidate.isDirectory) candidate.absolutePath else null
+    }
+
+    private fun checkResolverToolAvailable(preference: String) {
+        val binaries = if (preference == "pip-tools") {
+            listOf("pip-compile" to "pip-tools", "uv" to "uv")
+        } else {
+            listOf("uv" to "uv", "pip-compile" to "pip-tools")
+        }
+        for ((binary, _) in binaries) {
+            if (PythonDiscovery.findOnPath(binary) != null) return
+        }
+        val names = binaries.joinToString(" or ") { it.second }
+        throw ResolverException(
+            "No resolver tool found. Install $names and make sure it is on your PATH.\n" +
+                "Install uv: curl -LsSf https://astral.sh/uv/install.sh | sh\n" +
+                "Install pip-tools: pip install pip-tools",
+        )
     }
 
     companion object {

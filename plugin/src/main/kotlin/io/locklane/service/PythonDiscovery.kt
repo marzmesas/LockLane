@@ -57,7 +57,7 @@ object PythonDiscovery {
         }
     }
 
-    private fun findOnPath(name: String): String? {
+    fun findOnPath(name: String): String? {
         val pathEnv = System.getenv("PATH") ?: return null
         val separator = File.pathSeparator
         for (dir in pathEnv.split(separator)) {
