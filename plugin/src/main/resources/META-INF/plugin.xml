@@ -4,9 +4,38 @@
     <vendor email="mmesasro@gmail.com" url="https://github.com/marzmesas">Locklane</vendor>
 
     <description><![CDATA[
-        <p>Locklane plans safe Python dependency updates for requirements files with conflict-aware guidance.</p>
-        <p>Analyses pinned dependencies, simulates upgrades, and generates verified update plans.</p>
+        <p>Locklane plans safe Python dependency upgrades for requirements files with conflict-aware guidance.</p>
+
+        <h3>Features</h3>
+        <ul>
+            <li><b>Upgrade planning</b> — scans pinned dependencies for available updates and classifies each as safe, blocked, or inconclusive</li>
+            <li><b>Conflict detection</b> — shows exactly which transitive dependencies block an upgrade, with full conflict chain details</li>
+            <li><b>Verification</b> — runs your test suite against proposed changes in a disposable venv before touching any files</li>
+            <li><b>Apply</b> — writes approved upgrades to your requirements file, with dry-run support</li>
+            <li><b>Resolver flexibility</b> — uses <code>uv</code> by default with <code>pip-tools</code> as automatic fallback</li>
+        </ul>
+
+        <h3>Requirements</h3>
+        <ul>
+            <li>Python 3 on PATH or configured in settings</li>
+            <li><a href="https://docs.astral.sh/uv/">uv</a> or <a href="https://pip-tools.readthedocs.io/">pip-tools</a></li>
+        </ul>
+
+        <p>The Python resolver is bundled inside the plugin — no extra setup needed beyond the above.</p>
     ]]></description>
+
+    <change-notes><![CDATA[
+        <h3>0.1.0</h3>
+        <ul>
+            <li>Initial release</li>
+            <li>Upgrade plan generation with safe/blocked/inconclusive classification</li>
+            <li>Conflict chain visualization for blocked upgrades</li>
+            <li>Verification lane — test proposed upgrades in disposable venvs</li>
+            <li>Apply upgrades to lockfile with dry-run support</li>
+            <li>Bundled Python resolver — works out of the box</li>
+            <li>Configurable resolver preference (uv / pip-tools), timeouts, and private indexes</li>
+        </ul>
+    ]]></change-notes>
 
     <depends>com.intellij.modules.platform</depends>
 

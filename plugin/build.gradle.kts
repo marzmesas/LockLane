@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "io.locklane"
-version = "0.1.0-SNAPSHOT"
+version = "0.1.0"
 
 repositories {
     mavenCentral()
@@ -37,6 +37,23 @@ intellijPlatform {
 
         ideaVersion {
             sinceBuild = "252"
+            untilBuild = "253.*"
+        }
+    }
+
+    signing {
+        certificateChainFile = providers.environmentVariable("CERTIFICATE_CHAIN").map { file(it) }
+        privateKeyFile = providers.environmentVariable("PRIVATE_KEY").map { file(it) }
+        password = providers.environmentVariable("PRIVATE_KEY_PASSWORD")
+    }
+
+    publishing {
+        token = providers.environmentVariable("PUBLISH_TOKEN")
+    }
+
+    pluginVerification {
+        ides {
+            recommended()
         }
     }
 }
