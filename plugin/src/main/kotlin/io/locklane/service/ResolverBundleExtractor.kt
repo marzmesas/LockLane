@@ -17,7 +17,7 @@ object ResolverBundleExtractor {
     fun extractBundledResolver(): Path? {
         val initStream = javaClass.getResourceAsStream("$RESOURCE_PREFIX$ENTRY_POINT") ?: return null
 
-        val targetDir = Path.of(PathManager.getPluginTempPath(), "locklane-resolver")
+        val targetDir = Path.of(PathManager.getTempPath(), "locklane-resolver")
         val packageDir = targetDir.resolve("locklane_resolver")
         val targetInit = packageDir.resolve(ENTRY_POINT)
 

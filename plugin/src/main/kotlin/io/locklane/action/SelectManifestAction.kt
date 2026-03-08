@@ -5,6 +5,7 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
+import com.intellij.openapi.vfs.LocalFileSystem
 
 class SelectManifestAction : AnAction("Select Manifest", "Choose a requirements manifest file", AllIcons.Actions.MenuOpen) {
 
@@ -16,7 +17,8 @@ class SelectManifestAction : AnAction("Select Manifest", "Choose a requirements 
             .withTitle("Select Requirements Manifest")
             .withDescription("Choose a requirements.txt or similar manifest file")
 
-        val file = FileChooser.chooseFile(descriptor, project, project.baseDir) ?: return
+        val projectDir = project.basePath?.let { LocalFileSystem.getInstance().findFileByPath(it) }
+        val file = FileChooser.chooseFile(descriptor, project, projectDir) ?: return
         panel.setManifest(file.toNioPath())
     }
 
