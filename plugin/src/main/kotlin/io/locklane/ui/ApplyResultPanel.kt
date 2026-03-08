@@ -34,7 +34,7 @@ class ApplyResultPanel : JPanel() {
     private val updatesTable = JBTable(updatesModel).apply {
         emptyText.text = "(no updates applied)"
     }
-    private val confirmButton = JButton("Apply for Real").apply {
+    private val confirmButton = JButton("Apply plan").apply {
         isVisible = false
     }
 

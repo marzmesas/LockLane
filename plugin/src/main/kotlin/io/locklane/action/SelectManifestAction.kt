@@ -16,7 +16,7 @@ class SelectManifestAction : AnAction("Select Manifest", "Choose a requirements 
             .withTitle("Select Requirements Manifest")
             .withDescription("Choose a requirements.txt or similar manifest file")
 
-        val file = FileChooser.chooseFile(descriptor, project, null) ?: return
+        val file = FileChooser.chooseFile(descriptor, project, project.baseDir) ?: return
         panel.setManifest(file.toNioPath())
     }
 
