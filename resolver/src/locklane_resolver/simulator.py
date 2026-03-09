@@ -234,11 +234,19 @@ def create_modified_manifest(
     """
     lines = original.read_text(encoding="utf-8").splitlines(keepends=True)
 
-    match = _find_dependency_line(lines, package)
-    if match is not None:
-        idx, stripped = match
-        new_content = _build_replacement_line(stripped, package, target_version)
-        lines[idx] = new_content + "\n"
+    if original.suffix == ".toml":
+        from .pyproject_parser import find_pyproject_dependency_line, build_pyproject_replacement_line
+        match = find_pyproject_dependency_line([l.rstrip("\n") for l in lines], package)
+        if match is not None:
+            idx, stripped = match
+            new_content = build_pyproject_replacement_line(stripped, package, target_version)
+            lines[idx] = new_content + "\n"
+    else:
+        match = _find_dependency_line(lines, package)
+        if match is not None:
+            idx, stripped = match
+            new_content = _build_replacement_line(stripped, package, target_version)
+            lines[idx] = new_content + "\n"
 
     dest = dest_dir / original.name
     dest.write_text("".join(lines), encoding="utf-8")

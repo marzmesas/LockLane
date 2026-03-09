@@ -28,6 +28,7 @@ from .simulator import simulate_candidate
 from .verifier import verify_plan as run_verify_plan
 from .verifier import write_log_file
 from .applier import apply_plan as run_apply_plan
+from .pyproject_parser import parse_pyproject_dependencies
 
 SUPPORTED_RESOLVERS = {"uv": "uv", "pip-tools": "pip-compile"}
 
@@ -73,6 +74,13 @@ def parse_requirements(manifest_path: Path) -> list[ParsedDependency]:
     return dependencies
 
 
+def parse_manifest(manifest_path: Path) -> list[ParsedDependency]:
+    """Parse dependencies from any supported manifest format."""
+    if manifest_path.suffix == ".toml":
+        return parse_pyproject_dependencies(manifest_path)
+    return parse_requirements(manifest_path)
+
+
 def tooling_availability() -> dict[str, dict[str, Any]]:
     """Discover resolver tooling availability on PATH."""
     result: dict[str, dict[str, Any]] = {}
@@ -103,7 +111,7 @@ def baseline(
     no_resolve: bool = False,
 ) -> dict[str, Any]:
     """Produce baseline parse, resolution graph, and tooling metadata."""
-    dependencies = parse_requirements(manifest)
+    dependencies = parse_manifest(manifest)
 
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -175,7 +183,7 @@ def simulate(
     timeout: int = 120,
 ) -> dict[str, Any]:
     """Simulate resolution with a bumped candidate version."""
-    dependencies = parse_requirements(manifest)
+    dependencies = parse_manifest(manifest)
     normalized = {dep.name.lower(): dep for dep in dependencies}
     found = normalized.get(package.lower())
 
@@ -255,7 +263,7 @@ def plan(
     timeout: int = 120,
 ) -> dict[str, Any]:
     """Compose a full upgrade plan for all pinned dependencies."""
-    dependencies = parse_requirements(manifest)
+    dependencies = parse_manifest(manifest)
 
     try:
         plan_data = compose_upgrade_plan(

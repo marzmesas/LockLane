@@ -10,6 +10,7 @@ from typing import Any
 
 from .models import SCHEMA_VERSION, now_utc_iso
 from .simulator import _find_dependency_line, _build_replacement_line
+from .pyproject_parser import find_pyproject_dependency_line, build_pyproject_replacement_line
 
 
 # ---------------------------------------------------------------------------
@@ -75,6 +76,7 @@ def generate_patch_preview(
     :class:`PatchLine` instances.
     """
     lines = manifest_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    is_toml = manifest_path.suffix == ".toml"
     patch_lines: list[PatchLine] = []
     diff_parts: list[str] = [
         f"--- {manifest_path.name}\n",
@@ -86,12 +88,19 @@ def generate_patch_preview(
         from_ver = update["from_version"]
         to_ver = update["to_version"]
 
-        match = _find_dependency_line(lines, pkg)
+        if is_toml:
+            stripped_lines = [l.rstrip("\n") for l in lines]
+            match = find_pyproject_dependency_line(stripped_lines, pkg)
+        else:
+            match = _find_dependency_line(lines, pkg)
         if match is None:
             continue
 
         idx, stripped = match
-        new_content = _build_replacement_line(stripped, pkg, to_ver)
+        if is_toml:
+            new_content = build_pyproject_replacement_line(stripped, pkg, to_ver)
+        else:
+            new_content = _build_replacement_line(stripped, pkg, to_ver)
 
         patch_lines.append(PatchLine(
             line_number=idx + 1,
@@ -184,9 +193,9 @@ def apply_plan(
 
     # Build modified manifest content using verifier's iterative rewrite
     from .verifier import build_modified_manifest
-    from .cli import parse_requirements
+    from .cli import parse_manifest
 
-    dependencies = parse_requirements(manifest_path)
+    dependencies = parse_manifest(manifest_path)
     dest_dir = Path(tempfile.mkdtemp(prefix="locklane-apply-"))
     try:
         modified = build_modified_manifest(manifest_path, safe_updates, dependencies, dest_dir)

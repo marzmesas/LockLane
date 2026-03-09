@@ -283,8 +283,8 @@ def verify_plan(
         venv_dir = temp_dir / ".venv"
 
         # Step 2: Build modified manifest and install
-        from .cli import parse_requirements
-        dependencies = parse_requirements(manifest_path)
+        from .cli import parse_manifest
+        dependencies = parse_manifest(manifest_path)
         modified = build_modified_manifest(manifest_path, safe_updates, dependencies, temp_dir)
 
         install_step = install_dependencies(modified, venv_dir, resolver, python, timeout=timeout)
