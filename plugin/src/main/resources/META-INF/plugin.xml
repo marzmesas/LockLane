@@ -55,8 +55,15 @@
                 nonDefaultProject="true"/>
         <projectService serviceImplementation="io.locklane.settings.LocklaneSettings"/>
         <projectService serviceImplementation="io.locklane.service.ResolverService"/>
+        <projectService serviceImplementation="io.locklane.service.LocklaneProjectState"/>
 
         <notificationGroup id="Locklane" displayType="BALLOON"/>
+
+        <postStartupActivity implementation="io.locklane.activity.AutoScanActivity"/>
+
+        <codeInsight.lineMarkerProvider
+                language=""
+                implementationClass="io.locklane.editor.DependencyLineMarkerProvider"/>
     </extensions>
 </idea-plugin>
 
