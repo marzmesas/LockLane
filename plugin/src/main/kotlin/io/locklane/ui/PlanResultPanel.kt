@@ -1,5 +1,6 @@
 package io.locklane.ui
 
+import com.intellij.ui.JBColor
 import com.intellij.ui.TitledSeparator
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.table.JBTable
@@ -7,13 +8,17 @@ import io.locklane.model.BlockedUpdate
 import io.locklane.model.InconclusiveUpdate
 import io.locklane.model.SafeUpdate
 import io.locklane.model.UpgradePlan
+import java.awt.Color
+import java.awt.Component
 import java.awt.Dimension
 import java.awt.Font
 import javax.swing.BoxLayout
 import javax.swing.JComponent
 import javax.swing.JPanel
+import javax.swing.JTable
 import javax.swing.JTextArea
 import javax.swing.table.AbstractTableModel
+import javax.swing.table.DefaultTableCellRenderer
 
 class PlanResultPanel : JPanel() {
 
@@ -36,6 +41,7 @@ class PlanResultPanel : JPanel() {
 
     private val safeTable = JBTable(safeModel).apply {
         emptyText.text = "(no safe updates)"
+        columnModel.getColumn(3).cellRenderer = BumpCellRenderer()
     }
     private val blockedTable = JBTable(blockedModel).apply {
         emptyText.text = "(no blocked updates)"
@@ -166,17 +172,19 @@ class PlanResultPanel : JPanel() {
             set(value) { field = value; fireTableDataChanged() }
 
         override fun getRowCount() = data.size
-        override fun getColumnCount() = 3
+        override fun getColumnCount() = 4
         override fun getColumnName(col: Int) = when (col) {
             0 -> "Package"
             1 -> "From"
             2 -> "To"
+            3 -> "Bump"
             else -> ""
         }
         override fun getValueAt(row: Int, col: Int): Any = when (col) {
             0 -> data[row].packageName
             1 -> data[row].fromVersion
             2 -> data[row].toVersion
+            3 -> bumpSeverity(data[row].fromVersion, data[row].toVersion)
             else -> ""
         }
     }
@@ -221,9 +229,37 @@ class PlanResultPanel : JPanel() {
         }
     }
 
+    private class BumpCellRenderer : DefaultTableCellRenderer() {
+        override fun getTableCellRendererComponent(
+            table: JTable, value: Any?, isSelected: Boolean, hasFocus: Boolean, row: Int, col: Int,
+        ): Component {
+            val comp = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, col)
+            if (!isSelected) {
+                foreground = when (value) {
+                    "major" -> JBColor(Color(220, 80, 80), Color(220, 100, 100))
+                    "minor" -> JBColor(Color(200, 170, 50), Color(220, 190, 70))
+                    "patch" -> JBColor(Color(80, 180, 80), Color(100, 200, 100))
+                    else -> table.foreground
+                }
+            }
+            return comp
+        }
+    }
+
     companion object {
         private const val TABLE_HEADER_HEIGHT = 28
         private const val TABLE_PADDING = 4
+
+        private fun bumpSeverity(from: String, to: String): String {
+            val fromParts = from.split(".").mapNotNull { it.toIntOrNull() }
+            val toParts = to.split(".").mapNotNull { it.toIntOrNull() }
+            if (fromParts.size < 2 || toParts.size < 2) return "?"
+            return when {
+                toParts[0] != fromParts[0] -> "major"
+                toParts.getOrElse(1) { 0 } != fromParts.getOrElse(1) { 0 } -> "minor"
+                else -> "patch"
+            }
+        }
 
         private fun section(separator: TitledSeparator, content: JComponent): JPanel {
             return JPanel().apply {

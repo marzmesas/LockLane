@@ -12,10 +12,12 @@ import io.locklane.model.VerificationReport
 import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.awt.FlowLayout
+import java.awt.GridBagLayout
 import java.nio.file.Path
 import javax.swing.BorderFactory
 import javax.swing.BoxLayout
 import javax.swing.JPanel
+import javax.swing.JProgressBar
 
 class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
 
@@ -23,11 +25,24 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
 
     private val manifestLabel = JBLabel("No manifest selected")
     private val statusLabel = JBLabel("Ready")
+    private val progressBar = JProgressBar().apply {
+        isIndeterminate = true
+        isStringPainted = true
+        string = "Working..."
+        isVisible = false
+    }
+
+    private lateinit var statusCardPanel: JPanel
+    private val statusCardLayout get() = statusCardPanel.layout as CardLayout
 
     private val cardLayout = CardLayout()
     private val cardPanel = JPanel(cardLayout)
 
-    private val emptyPanel = JPanel()
+    private val emptyPanel = JPanel(GridBagLayout()).apply {
+        add(JBLabel("Select a requirements file to get started").apply {
+            foreground = JBColor.GRAY
+        })
+    }
     private val planResultPanel = PlanResultPanel()
     private val verifyResultPanel = VerifyResultPanel()
     private val applyResultPanel = ApplyResultPanel()
@@ -40,6 +55,12 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
     init {
         name = "LocklanePanel"
 
+        val statusRow = JPanel(CardLayout()).also { statusCardPanel = it }
+        statusRow.add(JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
+            add(statusLabel)
+        }, STATUS_LABEL)
+        statusRow.add(progressBar, STATUS_PROGRESS)
+
         val headerPanel = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             border = BorderFactory.createEmptyBorder(2, 4, 2, 4)
@@ -47,9 +68,7 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
                 add(JBLabel("Manifest: "))
                 add(manifestLabel)
             })
-            add(JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
-                add(statusLabel)
-            })
+            add(statusRow)
         }
 
         cardPanel.add(emptyPanel, CARD_EMPTY)
@@ -65,6 +84,7 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
     fun setManifest(path: Path) {
         state.onManifestSelected(path)
         manifestLabel.text = path.fileName.toString()
+        manifestLabel.toolTipText = path.toString()
         statusLabel.text = "Ready"
         statusLabel.foreground = JBColor.foreground()
         footerLabel.text = ""
@@ -126,8 +146,9 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
     fun setBusy(running: Boolean) {
         state.busy = running
         if (running) {
-            statusLabel.text = "Working..."
-            statusLabel.foreground = JBColor.foreground()
+            statusCardLayout.show(statusCardPanel, STATUS_PROGRESS)
+        } else {
+            statusCardLayout.show(statusCardPanel, STATUS_LABEL)
         }
     }
 
@@ -147,5 +168,7 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
         const val CARD_PLAN = "PLAN"
         const val CARD_VERIFY = "VERIFY"
         const val CARD_APPLY = "APPLY"
+        private const val STATUS_LABEL = "STATUS_LABEL"
+        private const val STATUS_PROGRESS = "STATUS_PROGRESS"
     }
 }

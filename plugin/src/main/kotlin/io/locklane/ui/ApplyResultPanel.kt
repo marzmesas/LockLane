@@ -10,12 +10,16 @@ import io.locklane.model.SafeUpdate
 import java.awt.Color
 import java.awt.Dimension
 import java.awt.Font
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
 import javax.swing.BorderFactory
 import javax.swing.BoxLayout
 import javax.swing.JButton
 import javax.swing.JComponent
+import javax.swing.JOptionPane
 import javax.swing.JPanel
 import javax.swing.JTextPane
+import javax.swing.SwingUtilities
 import javax.swing.table.AbstractTableModel
 import javax.swing.text.SimpleAttributeSet
 import javax.swing.text.StyleConstants
@@ -37,6 +41,16 @@ class ApplyResultPanel : JPanel() {
     private val confirmButton = JButton("Apply plan").apply {
         isVisible = false
     }
+    private val copyButton = JButton("Copy diff").apply {
+        isVisible = false
+        addActionListener {
+            val text = patchPane.text
+            val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+            clipboard.setContents(StringSelection(text), null)
+        }
+    }
+
+    private var rawPatch: String = ""
 
     private val patchSeparator = TitledSeparator("Patch Preview")
     private val updatesSeparator = TitledSeparator("Updates Applied")
@@ -50,6 +64,8 @@ class ApplyResultPanel : JPanel() {
     private val buttonPanel = JPanel().apply {
         layout = BoxLayout(this, BoxLayout.X_AXIS)
         add(confirmButton)
+        add(javax.swing.Box.createHorizontalStrut(8))
+        add(copyButton)
         alignmentX = LEFT_ALIGNMENT
     }
 
@@ -70,7 +86,19 @@ class ApplyResultPanel : JPanel() {
             modeBadge.foreground = JBColor.ORANGE
             confirmButton.isVisible = true
             confirmButton.actionListeners.forEach { confirmButton.removeActionListener(it) }
-            confirmButton.addActionListener { onConfirmApply() }
+            confirmButton.addActionListener {
+                val count = result.apply?.updatesApplied?.size ?: 0
+                val answer = JOptionPane.showConfirmDialog(
+                    SwingUtilities.getWindowAncestor(this),
+                    "Apply $count update(s) to the requirements file?",
+                    "Confirm Apply",
+                    JOptionPane.OK_CANCEL_OPTION,
+                    JOptionPane.QUESTION_MESSAGE,
+                )
+                if (answer == JOptionPane.OK_OPTION) {
+                    onConfirmApply()
+                }
+            }
         } else {
             modeBadge.text = "APPLIED"
             modeBadge.foreground = JBColor.GREEN
@@ -79,11 +107,13 @@ class ApplyResultPanel : JPanel() {
 
         val applyData = result.apply
         if (applyData != null) {
-            renderDiff(applyData.patchPreview)
+            rawPatch = applyData.patchPreview
+            renderDiff(rawPatch)
             updatesModel.data = applyData.updatesApplied
             autoSizeColumns(updatesTable)
 
-            patchSection.isVisible = applyData.patchPreview.isNotBlank()
+            patchSection.isVisible = rawPatch.isNotBlank()
+            copyButton.isVisible = rawPatch.isNotBlank()
             patchPane.caretPosition = 0
             updatesSection.isVisible = applyData.updatesApplied.isNotEmpty()
 
@@ -107,8 +137,10 @@ class ApplyResultPanel : JPanel() {
     fun clear() {
         modeBadge.text = ""
         patchPane.text = ""
+        rawPatch = ""
         updatesModel.data = emptyList()
         confirmButton.isVisible = false
+        copyButton.isVisible = false
         confirmButton.actionListeners.forEach { confirmButton.removeActionListener(it) }
         patchSection.isVisible = false
         updatesSection.isVisible = false

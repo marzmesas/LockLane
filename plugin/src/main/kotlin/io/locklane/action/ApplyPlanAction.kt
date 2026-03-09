@@ -8,7 +8,7 @@ import com.intellij.openapi.progress.Task
 import com.intellij.openapi.vfs.LocalFileSystem
 import io.locklane.service.ResolverService
 
-class ApplyPlanAction : AnAction("Apply Plan", "Apply the plan (dry-run first)", AllIcons.Actions.Download) {
+class ApplyPlanAction : AnAction("Apply Plan", "Apply the plan (dry-run first)", AllIcons.Diff.ApplyNotConflicts) {
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
