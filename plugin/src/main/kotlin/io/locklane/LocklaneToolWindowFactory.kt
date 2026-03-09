@@ -56,16 +56,31 @@ class LocklaneToolWindowFactory : ToolWindowFactory {
         }
         if (candidates.isEmpty()) return
 
-        val manifest = candidates.first()
         ApplicationManager.getApplication().invokeLater {
-            val answer = JOptionPane.showConfirmDialog(
-                SwingUtilities.getWindowAncestor(panel),
-                "Found ${manifest.name} in the project root. Use it as the manifest?",
-                "Locklane — Manifest Detected",
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.QUESTION_MESSAGE,
-            )
-            if (answer == JOptionPane.YES_OPTION) {
+            val manifest = if (candidates.size == 1) {
+                val answer = JOptionPane.showConfirmDialog(
+                    SwingUtilities.getWindowAncestor(panel),
+                    "Found ${candidates.first().name} in the project root. Use it as the manifest?",
+                    "Locklane — Manifest Detected",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE,
+                )
+                if (answer == JOptionPane.YES_OPTION) candidates.first() else null
+            } else {
+                val options = candidates.map { it.name }.toTypedArray()
+                val choice = JOptionPane.showInputDialog(
+                    SwingUtilities.getWindowAncestor(panel),
+                    "Multiple manifest files found. Choose one:",
+                    "Locklane — Select Manifest",
+                    JOptionPane.QUESTION_MESSAGE,
+                    null,
+                    options,
+                    options.first(),
+                )
+                if (choice != null) candidates.first { it.name == choice } else null
+            }
+
+            if (manifest != null) {
                 panel.setManifest(manifest.toPath())
             }
         }
@@ -79,6 +94,7 @@ class LocklaneToolWindowFactory : ToolWindowFactory {
             "requirements.txt",
             "requirements-dev.in",
             "requirements-dev.txt",
+            "pyproject.toml",
         )
     }
 }
