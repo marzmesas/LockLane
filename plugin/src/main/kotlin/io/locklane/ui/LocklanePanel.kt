@@ -129,6 +129,10 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
         cardLayout.show(cardPanel, CARD_APPLY)
     }
 
+    fun getSelectedSafeUpdates(): List<io.locklane.model.SafeUpdate> {
+        return planResultPanel.getSelectedSafeUpdates()
+    }
+
     fun showError(title: String, message: String) {
         statusLabel.text = "$title: $message"
         statusLabel.foreground = JBColor.RED

@@ -41,7 +41,12 @@ class PlanResultPanel : JPanel() {
 
     private val safeTable = JBTable(safeModel).apply {
         emptyText.text = "(no safe updates)"
-        columnModel.getColumn(3).cellRenderer = BumpCellRenderer()
+        columnModel.getColumn(0).apply {
+            preferredWidth = 30
+            maxWidth = 30
+            minWidth = 30
+        }
+        columnModel.getColumn(4).cellRenderer = BumpCellRenderer()
     }
     private val blockedTable = JBTable(blockedModel).apply {
         emptyText.text = "(no blocked updates)"
@@ -99,6 +104,10 @@ class PlanResultPanel : JPanel() {
         add(stepsSection)
     }
 
+    fun getSelectedSafeUpdates(): List<SafeUpdate> {
+        return safeModel.data.filterIndexed { i, _ -> safeModel.selected[i] }
+    }
+
     fun update(plan: UpgradePlan) {
         safeModel.data = plan.safeUpdates
         blockedModel.data = plan.blockedUpdates
@@ -110,7 +119,13 @@ class PlanResultPanel : JPanel() {
 
         stepsArea.text = plan.orderedSteps.joinToString("\n") { "${it.step}. ${it.description}" }
 
-        autoSizeColumns(safeTable)
+        // Fix checkbox column width after data load
+        safeTable.columnModel.getColumn(0).apply {
+            preferredWidth = 30
+            maxWidth = 30
+            minWidth = 30
+        }
+        autoSizeColumns(safeTable, skipColumns = setOf(0))
         autoSizeColumns(blockedTable)
         autoSizeColumns(inconclusiveTable)
 
@@ -150,9 +165,10 @@ class PlanResultPanel : JPanel() {
         repaint()
     }
 
-    private fun autoSizeColumns(table: JBTable) {
+    private fun autoSizeColumns(table: JBTable, skipColumns: Set<Int> = emptySet()) {
         val columnModel = table.columnModel
         for (col in 0 until columnModel.columnCount) {
+            if (col in skipColumns) continue
             var maxWidth = table.tableHeader
                 ?.defaultRenderer
                 ?.getTableCellRendererComponent(table, table.getColumnName(col), false, false, -1, col)
@@ -169,22 +185,40 @@ class PlanResultPanel : JPanel() {
 
     private class SafeTableModel : AbstractTableModel() {
         var data: List<SafeUpdate> = emptyList()
-            set(value) { field = value; fireTableDataChanged() }
+            set(value) {
+                field = value
+                selected = BooleanArray(value.size) { true }
+                fireTableDataChanged()
+            }
+        var selected: BooleanArray = BooleanArray(0)
 
         override fun getRowCount() = data.size
-        override fun getColumnCount() = 4
+        override fun getColumnCount() = 5
         override fun getColumnName(col: Int) = when (col) {
-            0 -> "Package"
-            1 -> "From"
-            2 -> "To"
-            3 -> "Bump"
+            0 -> ""
+            1 -> "Package"
+            2 -> "From"
+            3 -> "To"
+            4 -> "Bump"
             else -> ""
         }
+        override fun getColumnClass(col: Int): Class<*> = when (col) {
+            0 -> java.lang.Boolean::class.java
+            else -> String::class.java
+        }
+        override fun isCellEditable(row: Int, col: Int) = col == 0
+        override fun setValueAt(value: Any?, row: Int, col: Int) {
+            if (col == 0 && value is Boolean) {
+                selected[row] = value
+                fireTableCellUpdated(row, col)
+            }
+        }
         override fun getValueAt(row: Int, col: Int): Any = when (col) {
-            0 -> data[row].packageName
-            1 -> data[row].fromVersion
-            2 -> data[row].toVersion
-            3 -> bumpSeverity(data[row].fromVersion, data[row].toVersion)
+            0 -> selected[row]
+            1 -> data[row].packageName
+            2 -> data[row].fromVersion
+            3 -> data[row].toVersion
+            4 -> bumpSeverity(data[row].fromVersion, data[row].toVersion)
             else -> ""
         }
     }
@@ -250,7 +284,7 @@ class PlanResultPanel : JPanel() {
         private const val TABLE_HEADER_HEIGHT = 28
         private const val TABLE_PADDING = 4
 
-        private fun bumpSeverity(from: String, to: String): String {
+        fun bumpSeverity(from: String, to: String): String {
             val fromParts = from.split(".").mapNotNull { it.toIntOrNull() }
             val toParts = to.split(".").mapNotNull { it.toIntOrNull() }
             if (fromParts.size < 2 || toParts.size < 2) return "?"
