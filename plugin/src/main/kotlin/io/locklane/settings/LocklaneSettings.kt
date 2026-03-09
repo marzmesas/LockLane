@@ -18,6 +18,7 @@ class LocklaneSettings : PersistentStateComponent<LocklaneSettings.State> {
         var verifyCommand: String = "",
         var timeoutSeconds: Int = 120,
         var resolverSourcePath: String = "",
+        var autoScanEnabled: Boolean = true,
     )
 
     private var myState = State()

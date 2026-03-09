@@ -5,7 +5,6 @@ import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.Separator
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.content.ContentFactory
@@ -13,6 +12,8 @@ import io.locklane.action.ApplyPlanAction
 import io.locklane.action.RunPlanAction
 import io.locklane.action.SelectManifestAction
 import io.locklane.action.VerifyPlanAction
+import io.locklane.activity.AutoScanActivity
+import io.locklane.service.LocklaneProjectState
 import io.locklane.ui.LocklanePanel
 import java.awt.BorderLayout
 import java.io.File
@@ -45,12 +46,19 @@ class LocklaneToolWindowFactory : ToolWindowFactory {
         val content = ContentFactory.getInstance().createContent(wrapper, "", false)
         toolWindow.contentManager.addContent(content)
 
-        autoDetectManifest(project, panel)
+        // Check if auto-scan already ran and pre-populate the panel
+        val projectState = LocklaneProjectState.getInstance(project)
+        if (projectState.lastPlan != null && projectState.manifestPath != null) {
+            panel.setManifest(projectState.manifestPath!!)
+            panel.showPlan(projectState.lastPlan!!, projectState.lastPlanJson!!)
+        } else {
+            autoDetectManifest(project, panel)
+        }
     }
 
     private fun autoDetectManifest(project: Project, panel: LocklanePanel) {
         val basePath = project.basePath ?: return
-        val candidates = MANIFEST_NAMES.mapNotNull { name ->
+        val candidates = AutoScanActivity.MANIFEST_NAMES.mapNotNull { name ->
             val file = File(basePath, name)
             if (file.isFile) file else null
         }
@@ -87,14 +95,4 @@ class LocklaneToolWindowFactory : ToolWindowFactory {
     }
 
     override fun shouldBeAvailable(project: Project): Boolean = true
-
-    companion object {
-        private val MANIFEST_NAMES = listOf(
-            "requirements.in",
-            "requirements.txt",
-            "requirements-dev.in",
-            "requirements-dev.txt",
-            "pyproject.toml",
-        )
-    }
 }

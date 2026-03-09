@@ -5,6 +5,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.bindIntText
 import com.intellij.ui.dsl.builder.bindItem
+import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.dsl.builder.toNullableProperty
@@ -49,6 +50,13 @@ class LocklaneConfigurable(private val project: Project) : BoundConfigurable("Lo
                     )
                     .comment("One URL per line")
                     .align(AlignX.FILL)
+            }
+        }
+
+        group("Scanning") {
+            row {
+                checkBox("Auto-scan dependencies on project open")
+                    .bindSelected(settings.state::autoScanEnabled)
             }
         }
 
