@@ -6,7 +6,9 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import io.locklane.model.ApplyResult
+import io.locklane.model.AuditResult
 import io.locklane.model.BaselineResult
+import io.locklane.model.EnrichResult
 import io.locklane.model.UpgradePlan
 import io.locklane.model.VerificationReport
 import io.locklane.settings.LocklaneSettings
@@ -64,6 +66,16 @@ class ResolverService(private val project: Project) {
         }
         val result = executeResolver("apply", manifest, args, indicator = indicator)
         return objectMapper.readValue(result.stdout, ApplyResult::class.java)
+    }
+
+    fun runAudit(manifest: Path, indicator: ProgressIndicator? = null): AuditResult {
+        val result = executeResolver("audit", manifest, indicator = indicator)
+        return objectMapper.readValue(result.stdout, AuditResult::class.java)
+    }
+
+    fun runEnrich(manifest: Path, indicator: ProgressIndicator? = null): EnrichResult {
+        val result = executeResolver("enrich", manifest, indicator = indicator)
+        return objectMapper.readValue(result.stdout, EnrichResult::class.java)
     }
 
     private fun executeResolver(

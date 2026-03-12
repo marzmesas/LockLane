@@ -29,6 +29,8 @@ class RunPlanAction : AnAction("Run Plan", "Generate an upgrade plan", AllIcons.
                     panel.setBusy(false)
                     panel.showPlan(plan, tempFile)
                 }
+                // Run audit and enrich in background after plan
+                runAuditAndEnrich(project, manifest, panel)
             }
 
             override fun onCancel() {
@@ -38,6 +40,42 @@ class RunPlanAction : AnAction("Run Plan", "Generate an upgrade plan", AllIcons.
             override fun onThrowable(error: Throwable) {
                 panel.setBusy(false)
                 panel.showError("Plan failed", error.message ?: "Unknown error")
+            }
+        }.queue()
+    }
+
+    private fun runAuditAndEnrich(
+        project: com.intellij.openapi.project.Project,
+        manifest: java.nio.file.Path,
+        panel: io.locklane.ui.LocklanePanel,
+    ) {
+        val service = ResolverService.getInstance(project)
+
+        object : Task.Backgroundable(project, "Locklane: Scanning vulnerabilities...", true) {
+            override fun run(indicator: ProgressIndicator) {
+                indicator.isIndeterminate = true
+                try {
+                    val audit = service.runAudit(manifest, indicator)
+                    com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                        panel.updateVulnerabilities(audit)
+                    }
+                } catch (_: Exception) {
+                    // Audit is best-effort; don't block the user
+                }
+            }
+        }.queue()
+
+        object : Task.Backgroundable(project, "Locklane: Fetching package links...", true) {
+            override fun run(indicator: ProgressIndicator) {
+                indicator.isIndeterminate = true
+                try {
+                    val enrich = service.runEnrich(manifest, indicator)
+                    com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                        panel.updateLinks(enrich)
+                    }
+                } catch (_: Exception) {
+                    // Enrich is best-effort; don't block the user
+                }
             }
         }.queue()
     }

@@ -7,6 +7,8 @@ import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import io.locklane.model.ApplyResult
+import io.locklane.model.AuditResult
+import io.locklane.model.EnrichResult
 import io.locklane.model.UpgradePlan
 import io.locklane.model.VerificationReport
 import java.awt.BorderLayout
@@ -92,6 +94,7 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
         verifyResultPanel.clear()
         applyResultPanel.clear()
         cardLayout.show(cardPanel, CARD_EMPTY)
+        io.locklane.settings.LocklaneSettings.getInstance(project).state.lastManifestPath = path.toString()
     }
 
     fun showPlan(plan: UpgradePlan, planJsonPath: Path) {
@@ -131,6 +134,14 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
 
     fun getSelectedSafeUpdates(): List<io.locklane.model.SafeUpdate> {
         return planResultPanel.getSelectedSafeUpdates()
+    }
+
+    fun updateVulnerabilities(audit: AuditResult) {
+        planResultPanel.updateVulnerabilities(audit)
+    }
+
+    fun updateLinks(enrich: EnrichResult) {
+        planResultPanel.updateLinks(enrich)
     }
 
     fun showError(title: String, message: String) {
