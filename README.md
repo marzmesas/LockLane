@@ -1,35 +1,45 @@
-# Locklane
+# LockLane
 
-A JetBrains IDE plugin that plans safe Python dependency upgrades for requirements files. It analyses pinned dependencies, simulates upgrades, detects conflicts, and generates verified update plans — all from inside your editor.
+[![GitHub Release](https://img.shields.io/github/v/release/marzmesas/LockLane?logo=github)](https://github.com/marzmesas/LockLane/releases)
+[![Build](https://img.shields.io/github/actions/workflow/status/marzmesas/LockLane/build.yml?logo=github)](https://github.com/marzmesas/LockLane/actions/workflows/build.yml)
+[![License](https://img.shields.io/github/license/marzmesas/LockLane)](LICENSE)
+
+A JetBrains IDE plugin that plans safe Python dependency upgrades with conflict-aware guidance. Supports `requirements.txt`, `requirements.in`, and `pyproject.toml` (PEP 621 and Poetry).
 
 ## Features
 
-- **Upgrade planning** — scans all pinned dependencies for available updates and classifies each as safe, blocked, or inconclusive
+- **Baseline view** — see all current pinned and resolved dependency versions at a glance
+- **Upgrade planning** — scans dependencies for available updates and classifies each as safe, blocked, or inconclusive
 - **Conflict detection** — shows exactly which transitive dependencies block an upgrade, with full conflict chain details
+- **Vulnerability scanning** — checks dependencies against the OSV database for known security issues
+- **Changelog links** — quick links to changelogs and project pages from the plan view
+- **Per-package selective apply** — choose exactly which updates to apply with checkboxes
 - **Verification** — runs your test suite against proposed changes in a disposable venv before touching any files
-- **Apply** — writes the approved upgrades to your requirements file, with dry-run support
+- **Apply with dry-run** — preview changes before writing, with automatic lock file regeneration
+- **Rollback history** — restore previous manifest versions if an update causes issues
+- **Gutter icons** — see update status (patch/minor/major) next to each dependency in the editor
+- **Auto-scan** — automatically checks for updates when you open a project
+- **Ignore list** — exclude packages you don't want to upgrade
 - **Resolver flexibility** — uses `uv` by default with `pip-tools` as automatic fallback
 
-## Requirements
+## Installation
 
-- IntelliJ-based IDE (PyCharm, IntelliJ IDEA, etc.) 2025.2+
-- Python 3 on PATH (or configured in settings)
-- [`uv`](https://docs.astral.sh/uv/) or [`pip-tools`](https://pip-tools.readthedocs.io/) installed
-
-The Python resolver is bundled inside the plugin — no extra setup needed beyond the above.
+**Manual install:**
+Download the latest `.zip` from [Releases](https://github.com/marzmesas/LockLane/releases), then go to Settings > Plugins > gear icon > Install Plugin from Disk.
 
 ## Usage
 
-1. Open a project that contains a `requirements.in` (or similar manifest)
-2. Open the **Locklane** tool window (right panel)
-3. **Select Manifest** — pick your requirements file
-4. **Run Plan** — generates an upgrade plan showing safe, blocked, and inconclusive updates
-5. **Verify Plan** (optional) — runs verification against the proposed changes
-6. **Apply** — writes the approved upgrades to your lockfile
+1. Open a project that contains a `requirements.in`, `requirements.txt`, or `pyproject.toml`
+2. Open the **LockLane** tool window (right panel)
+3. **Select Manifest** — pick your requirements file (or let auto-detection find it)
+4. **Baseline** — view current dependency versions
+5. **Run Plan** — generates an upgrade plan showing safe, blocked, and inconclusive updates
+6. **Verify Plan** (optional) — runs verification against the proposed changes
+7. **Apply** — writes the approved upgrades to your manifest with dry-run preview
 
 ## Settings
 
-Available under **Settings > Tools > Locklane**:
+Available under **Settings > Tools > LockLane**:
 
 | Setting | Description | Default |
 |---------|-------------|---------|
@@ -38,87 +48,37 @@ Available under **Settings > Tools > Locklane**:
 | Timeout (seconds) | Max time for resolver operations | 120 |
 | Resolver source path | Override bundled resolver with a local path (for development) | Bundled |
 | Extra index URLs | Private package index URLs, one per line | — |
+| Ignored packages | Package names to exclude from plans, one per line | — |
+| Auto-scan | Scan dependencies on project open | Enabled |
 | Verify command | Custom verification command (e.g., `pytest`) | — |
 
-## Development
+Use **Validate Setup** in settings to check that Python and resolver tools are correctly configured.
 
-### Prerequisites
+## Requirements
 
-- JDK 17+
-- Python 3.10+
-- `uv` and/or `pip-tools`
+- JetBrains IDE (PyCharm, IntelliJ IDEA, etc.) **2024.2** or later
+- Python 3 on PATH (or configured in settings)
+- [`uv`](https://docs.astral.sh/uv/) or [`pip-tools`](https://pip-tools.readthedocs.io/) installed
 
-### Project structure
+The Python resolver is bundled inside the plugin — no extra setup needed beyond the above.
 
-```text
-Locklane/
-  plugin/              # Kotlin/JetBrains plugin
-    build.gradle.kts
-    src/main/kotlin/io/locklane/
-      action/          # Toolbar actions (select, plan, verify, apply)
-      model/           # Data classes matching resolver JSON contracts
-      service/         # ResolverService, ProcessRunner, PythonDiscovery
-      settings/        # Persistent project settings
-      ui/              # Tool window panels and tables
-    src/test/kotlin/io/locklane/
-  resolver/            # Python resolver worker
-    src/locklane_resolver/
-      cli.py           # CLI entry point (baseline, plan, verify-plan, apply, simulate, verify)
-      planner.py       # Upgrade plan composition
-      resolver.py      # uv/pip-tools subprocess invocation
-      simulator.py     # Single-candidate upgrade simulation
-      verifier.py      # Verification lane execution
-      applier.py       # Lockfile update writer
-      graph.py         # Dependency graph analysis
-      cache.py         # Resolution caching
-      pypi.py          # PyPI version queries
-      models.py        # Shared data models
-    tests/
-  schemas/             # JSON schema contracts between plugin and resolver
-  scripts/             # Dev scripts (bootstrap, test runners, smoke test)
-  docs/                # Architecture docs and implementation plan
-```
+## Building from source
 
-### Build and run
+Prerequisites: JDK 17+, Python 3.10+
 
 ```bash
 cd plugin
 
-# Run the plugin in a sandboxed IDE
-./gradlew runIde
-
-# Run unit tests
+# Run tests
 ./gradlew test
 
-# Run integration tests (requires Python + resolver tools)
-./gradlew integrationTest
+# Build the plugin
+./gradlew buildPlugin
 
-# Build distributable
-./gradlew build
+# Launch a sandbox IDE with the plugin loaded
+./gradlew runIde
 ```
-
-The build automatically bundles the Python resolver sources from `resolver/src/` into the plugin JAR under `bundled_resolver/`. At runtime, these are extracted to a cache directory on first use.
-
-### Resolver CLI (standalone)
-
-The resolver can also be used independently:
-
-```bash
-cd resolver
-python -m locklane_resolver plan --manifest path/to/requirements.in --resolver uv --python python3
-```
-
-Available commands: `baseline`, `plan`, `verify-plan`, `apply`, `simulate`, `verify`.
-
-## Architecture
-
-The plugin has two layers communicating via JSON over subprocess I/O:
-
-- **Plugin (Kotlin)** — UI, state management, background task orchestration, settings
-- **Resolver (Python)** — dependency resolution, upgrade simulation, conflict detection, verification
-
-See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for details.
 
 ## License
 
-Copyright Mario Mesas. All rights reserved.
+[Apache License 2.0](LICENSE)
