@@ -10,6 +10,7 @@ import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.content.ContentFactory
 import io.locklane.action.ApplyPlanAction
 import io.locklane.action.RollbackHistoryAction
+import io.locklane.action.RunBaselineAction
 import io.locklane.action.RunPlanAction
 import io.locklane.action.SelectManifestAction
 import io.locklane.action.VerifyPlanAction
@@ -32,6 +33,7 @@ class LocklaneToolWindowFactory : ToolWindowFactory {
         val actionGroup = DefaultActionGroup().apply {
             add(SelectManifestAction())
             add(Separator())
+            add(RunBaselineAction())
             add(RunPlanAction())
             add(VerifyPlanAction())
             add(ApplyPlanAction())

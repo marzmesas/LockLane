@@ -8,6 +8,7 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import io.locklane.model.ApplyResult
 import io.locklane.model.AuditResult
+import io.locklane.model.BaselineResult
 import io.locklane.model.EnrichResult
 import io.locklane.model.UpgradePlan
 import io.locklane.model.VerificationReport
@@ -45,6 +46,7 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
             foreground = JBColor.GRAY
         })
     }
+    private val baselineResultPanel = BaselineResultPanel()
     private val planResultPanel = PlanResultPanel()
     private val verifyResultPanel = VerifyResultPanel()
     private val applyResultPanel = ApplyResultPanel()
@@ -74,6 +76,7 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
         }
 
         cardPanel.add(emptyPanel, CARD_EMPTY)
+        cardPanel.add(JBScrollPane(baselineResultPanel), CARD_BASELINE)
         cardPanel.add(JBScrollPane(planResultPanel), CARD_PLAN)
         cardPanel.add(JBScrollPane(verifyResultPanel), CARD_VERIFY)
         cardPanel.add(JBScrollPane(applyResultPanel), CARD_APPLY)
@@ -90,11 +93,20 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
         statusLabel.text = "Ready"
         statusLabel.foreground = JBColor.foreground()
         footerLabel.text = ""
+        baselineResultPanel.clear()
         planResultPanel.clear()
         verifyResultPanel.clear()
         applyResultPanel.clear()
         cardLayout.show(cardPanel, CARD_EMPTY)
         io.locklane.settings.LocklaneSettings.getInstance(project).state.lastManifestPath = path.toString()
+    }
+
+    fun showBaseline(baseline: BaselineResult) {
+        baselineResultPanel.update(baseline)
+        statusLabel.text = "Baseline — ${baseline.dependencies.size} dependencies"
+        statusLabel.foreground = JBColor.foreground()
+        footerLabel.text = "Baseline: ${baseline.dependencies.size} pinned dependencies"
+        cardLayout.show(cardPanel, CARD_BASELINE)
     }
 
     fun showPlan(plan: UpgradePlan, planJsonPath: Path) {
@@ -180,6 +192,7 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
 
     companion object {
         const val CARD_EMPTY = "EMPTY"
+        const val CARD_BASELINE = "BASELINE"
         const val CARD_PLAN = "PLAN"
         const val CARD_VERIFY = "VERIFY"
         const val CARD_APPLY = "APPLY"
