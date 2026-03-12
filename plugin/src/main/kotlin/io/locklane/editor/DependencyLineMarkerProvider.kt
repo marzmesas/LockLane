@@ -7,7 +7,7 @@ import com.intellij.openapi.editor.markup.GutterIconRenderer
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import io.locklane.model.SafeUpdate
-import io.locklane.service.LocklaneProjectState
+import io.locklane.service.LockLaneProjectState
 import io.locklane.ui.PlanResultPanel
 import javax.swing.Icon
 
@@ -21,7 +21,7 @@ class DependencyLineMarkerProvider : LineMarkerProvider {
         if (!isManifestFile(file)) return null
 
         val project = element.project
-        val state = LocklaneProjectState.getInstance(project)
+        val state = LockLaneProjectState.getInstance(project)
         val plan = state.lastPlan ?: return null
         val manifestPath = state.manifestPath ?: return null
 

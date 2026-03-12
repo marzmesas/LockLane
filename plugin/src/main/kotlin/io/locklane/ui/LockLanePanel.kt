@@ -22,7 +22,7 @@ import javax.swing.BoxLayout
 import javax.swing.JPanel
 import javax.swing.JProgressBar
 
-class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
+class LockLanePanel(private val project: Project) : JPanel(BorderLayout()) {
 
     val state = PanelState()
 
@@ -57,7 +57,7 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
     }
 
     init {
-        name = "LocklanePanel"
+        name = "LockLanePanel"
 
         val statusRow = JPanel(CardLayout()).also { statusCardPanel = it }
         statusRow.add(JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply {
@@ -98,7 +98,7 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
         verifyResultPanel.clear()
         applyResultPanel.clear()
         cardLayout.show(cardPanel, CARD_EMPTY)
-        io.locklane.settings.LocklaneSettings.getInstance(project).state.lastManifestPath = path.toString()
+        io.locklane.settings.LockLaneSettings.getInstance(project).state.lastManifestPath = path.toString()
     }
 
     fun showBaseline(baseline: BaselineResult) {
@@ -162,7 +162,7 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
         footerLabel.text = ""
         try {
             NotificationGroupManager.getInstance()
-                .getNotificationGroup("Locklane")
+                .getNotificationGroup("LockLane")
                 .createNotification(title, message, NotificationType.ERROR)
                 .notify(project)
         } catch (_: Exception) {
@@ -182,7 +182,7 @@ class LocklanePanel(private val project: Project) : JPanel(BorderLayout()) {
     fun notifySuccess(title: String, message: String) {
         try {
             NotificationGroupManager.getInstance()
-                .getNotificationGroup("Locklane")
+                .getNotificationGroup("LockLane")
                 .createNotification(title, message, NotificationType.INFORMATION)
                 .notify(project)
         } catch (_: Exception) {

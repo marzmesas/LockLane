@@ -11,7 +11,7 @@ import io.locklane.model.SafeUpdate
 import io.locklane.service.LockFileService
 import io.locklane.service.ResolverService
 import io.locklane.service.RollbackHistoryService
-import io.locklane.settings.LocklaneSettings
+import io.locklane.settings.LockLaneSettings
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.TimeUnit
@@ -24,7 +24,7 @@ class ApplyPlanAction : AnAction("Apply Plan", "Apply the plan (dry-run first)",
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val panel = findLocklanePanel(project) ?: return
+        val panel = findLockLanePanel(project) ?: return
         val manifest = panel.state.manifestPath ?: return
         val planJson = panel.state.lastPlanJson ?: return
 
@@ -38,7 +38,7 @@ class ApplyPlanAction : AnAction("Apply Plan", "Apply the plan (dry-run first)",
 
         panel.setBusy(true)
 
-        object : Task.Backgroundable(project, "Locklane: Applying plan (dry-run)...", true) {
+        object : Task.Backgroundable(project, "LockLane: Applying plan (dry-run)...", true) {
             override fun run(indicator: ProgressIndicator) {
                 indicator.isIndeterminate = true
                 indicator.text = "Generating patch preview..."
@@ -88,13 +88,13 @@ class ApplyPlanAction : AnAction("Apply Plan", "Apply the plan (dry-run first)",
 
     private fun applyForReal(
         project: com.intellij.openapi.project.Project,
-        panel: io.locklane.ui.LocklanePanel,
+        panel: io.locklane.ui.LockLanePanel,
         manifest: java.nio.file.Path,
         planJson: java.nio.file.Path,
     ) {
         panel.setBusy(true)
 
-        object : Task.Backgroundable(project, "Locklane: Applying plan...", true) {
+        object : Task.Backgroundable(project, "LockLane: Applying plan...", true) {
             override fun run(indicator: ProgressIndicator) {
                 indicator.isIndeterminate = true
                 // Save rollback before applying
@@ -113,7 +113,7 @@ class ApplyPlanAction : AnAction("Apply Plan", "Apply the plan (dry-run first)",
                     panel.setBusy(false)
                     panel.showApply(result) {}
                     panel.notifySuccess(
-                        "Locklane: Updates applied",
+                        "LockLane: Updates applied",
                         "${result.apply?.updatesApplied?.size ?: 0} package(s) updated",
                     )
                     LocalFileSystem.getInstance().refreshAndFindFileByNioFile(manifest)
@@ -134,16 +134,16 @@ class ApplyPlanAction : AnAction("Apply Plan", "Apply the plan (dry-run first)",
 
     private fun offerLockFileRegeneration(
         project: com.intellij.openapi.project.Project,
-        panel: io.locklane.ui.LocklanePanel,
+        panel: io.locklane.ui.LockLanePanel,
         manifest: Path,
     ) {
-        val settings = LocklaneSettings.getInstance(project)
+        val settings = LockLaneSettings.getInstance(project)
         val lockInfo = LockFileService.detectLockFile(manifest, settings.state.resolverPreference) ?: return
 
         val answer = JOptionPane.showConfirmDialog(
             SwingUtilities.getWindowAncestor(panel),
             "Regenerate ${lockInfo.lockFilePath.fileName} using ${lockInfo.toolName}?",
-            "Locklane — Update Lock File",
+            "LockLane — Update Lock File",
             JOptionPane.YES_NO_OPTION,
             JOptionPane.QUESTION_MESSAGE,
         )
@@ -151,12 +151,12 @@ class ApplyPlanAction : AnAction("Apply Plan", "Apply the plan (dry-run first)",
 
         panel.setBusy(true)
 
-        object : Task.Backgroundable(project, "Locklane: Regenerating ${lockInfo.lockFilePath.fileName}...", true) {
+        object : Task.Backgroundable(project, "LockLane: Regenerating ${lockInfo.lockFilePath.fileName}...", true) {
             override fun run(indicator: ProgressIndicator) {
                 indicator.isIndeterminate = true
                 indicator.text = "Running ${lockInfo.toolName}..."
 
-                val settings = LocklaneSettings.getInstance(project)
+                val settings = LockLaneSettings.getInstance(project)
                 val process = ProcessBuilder(lockInfo.command)
                     .directory(manifest.parent?.toFile())
                     .redirectErrorStream(true)
@@ -198,7 +198,7 @@ class ApplyPlanAction : AnAction("Apply Plan", "Apply the plan (dry-run first)",
     }
 
     override fun update(e: AnActionEvent) {
-        val panel = e.project?.let { findLocklanePanel(it) }
+        val panel = e.project?.let { findLockLanePanel(it) }
         e.presentation.isEnabled = panel?.state?.canApply == true
     }
 }

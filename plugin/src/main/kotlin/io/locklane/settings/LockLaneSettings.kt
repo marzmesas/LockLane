@@ -8,8 +8,8 @@ import com.intellij.openapi.project.Project
 import com.intellij.util.xmlb.XmlSerializerUtil
 
 @Service(Service.Level.PROJECT)
-@State(name = "LocklaneSettings", storages = [Storage("locklane.xml")])
-class LocklaneSettings : PersistentStateComponent<LocklaneSettings.State> {
+@State(name = "LockLaneSettings", storages = [Storage("locklane.xml")])
+class LockLaneSettings : PersistentStateComponent<LockLaneSettings.State> {
 
     data class State(
         var pythonPath: String = "",
@@ -32,7 +32,7 @@ class LocklaneSettings : PersistentStateComponent<LocklaneSettings.State> {
     }
 
     companion object {
-        fun getInstance(project: Project): LocklaneSettings =
-            project.getService(LocklaneSettings::class.java)
+        fun getInstance(project: Project): LockLaneSettings =
+            project.getService(LockLaneSettings::class.java)
     }
 }

@@ -9,16 +9,16 @@ import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.ProjectActivity
 import com.intellij.openapi.wm.ToolWindowManager
-import io.locklane.service.LocklaneProjectState
+import io.locklane.service.LockLaneProjectState
 import io.locklane.service.ResolverService
-import io.locklane.settings.LocklaneSettings
+import io.locklane.settings.LockLaneSettings
 import java.io.File
 import java.nio.file.Files
 
 class AutoScanActivity : ProjectActivity {
 
     override suspend fun execute(project: Project) {
-        val settings = LocklaneSettings.getInstance(project)
+        val settings = LockLaneSettings.getInstance(project)
         if (!settings.state.autoScanEnabled) return
 
         val basePath = project.basePath ?: return
@@ -27,7 +27,7 @@ class AutoScanActivity : ProjectActivity {
             if (file.isFile) file else null
         } ?: return
 
-        object : Task.Backgroundable(project, "Locklane: Scanning dependencies...", true) {
+        object : Task.Backgroundable(project, "LockLane: Scanning dependencies...", true) {
             override fun run(indicator: ProgressIndicator) {
                 indicator.isIndeterminate = true
                 try {
@@ -36,7 +36,7 @@ class AutoScanActivity : ProjectActivity {
                     val tempFile = Files.createTempFile("locklane-autoscan-", ".json")
                     Files.writeString(tempFile, rawJson)
 
-                    val state = LocklaneProjectState.getInstance(project)
+                    val state = LockLaneProjectState.getInstance(project)
                     state.lastPlan = plan
                     state.lastPlanJson = tempFile
                     state.manifestPath = manifest.toPath()
@@ -57,11 +57,11 @@ class AutoScanActivity : ProjectActivity {
                     com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
                         try {
                             NotificationGroupManager.getInstance()
-                                .getNotificationGroup("Locklane")
-                                .createNotification("Locklane", message, NotificationType.INFORMATION)
-                                .addAction(NotificationAction.createSimple("Open Locklane") {
+                                .getNotificationGroup("LockLane")
+                                .createNotification("LockLane", message, NotificationType.INFORMATION)
+                                .addAction(NotificationAction.createSimple("Open LockLane") {
                                     ToolWindowManager.getInstance(project)
-                                        .getToolWindow("Locklane")?.activate(null)
+                                        .getToolWindow("LockLane")?.activate(null)
                                 })
                                 .notify(project)
                         } catch (_: Exception) {
@@ -69,14 +69,14 @@ class AutoScanActivity : ProjectActivity {
                         }
                     }
                 } catch (e: Exception) {
-                    LOG.info("Locklane auto-scan failed: ${e.message}")
+                    LOG.info("LockLane auto-scan failed: ${e.message}")
                     com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
                         try {
                             NotificationGroupManager.getInstance()
-                                .getNotificationGroup("Locklane")
+                                .getNotificationGroup("LockLane")
                                 .createNotification(
-                                    "Locklane",
-                                    "Auto-scan failed: ${e.message ?: "unknown error"}. Check Settings > Tools > Locklane.",
+                                    "LockLane",
+                                    "Auto-scan failed: ${e.message ?: "unknown error"}. Check Settings > Tools > LockLane.",
                                     NotificationType.WARNING,
                                 )
                                 .notify(project)

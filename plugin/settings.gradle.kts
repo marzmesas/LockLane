@@ -1,2 +1,2 @@
-rootProject.name = "LocklanePlugin"
+rootProject.name = "LockLanePlugin"
 

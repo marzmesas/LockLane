@@ -15,9 +15,9 @@ import io.locklane.action.RunPlanAction
 import io.locklane.action.SelectManifestAction
 import io.locklane.action.VerifyPlanAction
 import io.locklane.activity.AutoScanActivity
-import io.locklane.service.LocklaneProjectState
-import io.locklane.settings.LocklaneSettings
-import io.locklane.ui.LocklanePanel
+import io.locklane.service.LockLaneProjectState
+import io.locklane.settings.LockLaneSettings
+import io.locklane.ui.LockLanePanel
 import java.awt.BorderLayout
 import java.io.File
 import java.nio.file.Path
@@ -25,10 +25,10 @@ import javax.swing.JOptionPane
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
 
-class LocklaneToolWindowFactory : ToolWindowFactory {
+class LockLaneToolWindowFactory : ToolWindowFactory {
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-        val panel = LocklanePanel(project)
+        val panel = LockLanePanel(project)
 
         val actionGroup = DefaultActionGroup().apply {
             add(SelectManifestAction())
@@ -42,7 +42,7 @@ class LocklaneToolWindowFactory : ToolWindowFactory {
         }
 
         val toolbar = ActionManager.getInstance()
-            .createActionToolbar("LocklaneToolbar", actionGroup, true)
+            .createActionToolbar("LockLaneToolbar", actionGroup, true)
         toolbar.targetComponent = panel
 
         val wrapper = JPanel(BorderLayout()).apply {
@@ -54,13 +54,13 @@ class LocklaneToolWindowFactory : ToolWindowFactory {
         toolWindow.contentManager.addContent(content)
 
         // Check if auto-scan already ran and pre-populate the panel
-        val projectState = LocklaneProjectState.getInstance(project)
+        val projectState = LockLaneProjectState.getInstance(project)
         if (projectState.lastPlan != null && projectState.manifestPath != null) {
             panel.setManifest(projectState.manifestPath!!)
             panel.showPlan(projectState.lastPlan!!, projectState.lastPlanJson!!)
         } else {
             // Try persisted manifest from previous session
-            val persisted = LocklaneSettings.getInstance(project).state.lastManifestPath
+            val persisted = LockLaneSettings.getInstance(project).state.lastManifestPath
             if (persisted.isNotBlank() && Path.of(persisted).toFile().isFile) {
                 panel.setManifest(Path.of(persisted))
             } else {
@@ -69,7 +69,7 @@ class LocklaneToolWindowFactory : ToolWindowFactory {
         }
     }
 
-    private fun autoDetectManifest(project: Project, panel: LocklanePanel) {
+    private fun autoDetectManifest(project: Project, panel: LockLanePanel) {
         val basePath = project.basePath ?: return
         val candidates = AutoScanActivity.MANIFEST_NAMES.mapNotNull { name ->
             val file = File(basePath, name)
@@ -82,7 +82,7 @@ class LocklaneToolWindowFactory : ToolWindowFactory {
                 val answer = JOptionPane.showConfirmDialog(
                     SwingUtilities.getWindowAncestor(panel),
                     "Found ${candidates.first().name} in the project root. Use it as the manifest?",
-                    "Locklane — Manifest Detected",
+                    "LockLane — Manifest Detected",
                     JOptionPane.YES_NO_OPTION,
                     JOptionPane.QUESTION_MESSAGE,
                 )
@@ -92,7 +92,7 @@ class LocklaneToolWindowFactory : ToolWindowFactory {
                 val choice = JOptionPane.showInputDialog(
                     SwingUtilities.getWindowAncestor(panel),
                     "Multiple manifest files found. Choose one:",
-                    "Locklane — Select Manifest",
+                    "LockLane — Select Manifest",
                     JOptionPane.QUESTION_MESSAGE,
                     null,
                     options,

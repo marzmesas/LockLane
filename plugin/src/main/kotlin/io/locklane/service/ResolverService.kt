@@ -12,7 +12,7 @@ import io.locklane.model.BaselineResult
 import io.locklane.model.EnrichResult
 import io.locklane.model.UpgradePlan
 import io.locklane.model.VerificationReport
-import io.locklane.settings.LocklaneSettings
+import io.locklane.settings.LockLaneSettings
 import java.io.File
 import java.nio.file.Path
 
@@ -44,7 +44,7 @@ class ResolverService(private val project: Project) {
 
     fun runVerifyPlan(manifest: Path, planJson: Path, indicator: ProgressIndicator? = null): VerificationReport {
         val extraArgs = listOf("--plan-json", planJson.toString())
-        val settings = LocklaneSettings.getInstance(project)
+        val settings = LockLaneSettings.getInstance(project)
         val args = extraArgs.toMutableList()
         if (settings.state.verifyCommand.isNotBlank()) {
             args += listOf("--command", settings.state.verifyCommand)
@@ -87,12 +87,12 @@ class ResolverService(private val project: Project) {
         extraArgs: List<String> = emptyList(),
         indicator: ProgressIndicator? = null,
     ): ProcessResult {
-        val settings = LocklaneSettings.getInstance(project)
+        val settings = LockLaneSettings.getInstance(project)
 
         val pythonPath = PythonDiscovery.findPython(
             configuredPath = settings.state.pythonPath.ifBlank { null },
             projectBasePath = project.basePath,
-        ) ?: throw ResolverException("No Python interpreter found. Configure one in Settings > Tools > Locklane.")
+        ) ?: throw ResolverException("No Python interpreter found. Configure one in Settings > Tools > LockLane.")
 
         checkResolverToolAvailable(settings.state.resolverPreference)
 
@@ -134,7 +134,7 @@ class ResolverService(private val project: Project) {
         return result
     }
 
-    private fun buildEnvironment(settings: LocklaneSettings, pythonPath: String): Map<String, String> {
+    private fun buildEnvironment(settings: LockLaneSettings, pythonPath: String): Map<String, String> {
         val env = mutableMapOf<String, String>()
 
         // Set PYTHONPATH to resolver source
@@ -164,7 +164,7 @@ class ResolverService(private val project: Project) {
         return env
     }
 
-    private fun resolveResolverSourcePath(settings: LocklaneSettings): String? {
+    private fun resolveResolverSourcePath(settings: LockLaneSettings): String? {
         // 1. Explicit user override
         if (settings.state.resolverSourcePath.isNotBlank()) {
             log.info("Using configured resolver source path: ${settings.state.resolverSourcePath}")

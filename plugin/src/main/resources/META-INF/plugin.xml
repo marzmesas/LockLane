@@ -1,10 +1,10 @@
 <idea-plugin>
     <id>io.locklane.plugin</id>
-    <name>Locklane</name>
-    <vendor email="mmesasro@gmail.com" url="https://github.com/marzmesas">Locklane</vendor>
+    <name>LockLane</name>
+    <vendor email="mmesasro@gmail.com" url="https://github.com/marzmesas">LockLane</vendor>
 
     <description><![CDATA[
-        <p>Locklane plans safe Python dependency upgrades with conflict-aware guidance. Supports <code>requirements.txt</code>, <code>requirements.in</code>, and <code>pyproject.toml</code> (PEP 621 and Poetry).</p>
+        <p>LockLane plans safe Python dependency upgrades with conflict-aware guidance. Supports <code>requirements.txt</code>, <code>requirements.in</code>, and <code>pyproject.toml</code> (PEP 621 and Poetry).</p>
 
         <h3>Features</h3>
         <ul>
@@ -29,7 +29,7 @@
             <li><a href="https://docs.astral.sh/uv/">uv</a> or <a href="https://pip-tools.readthedocs.io/">pip-tools</a></li>
         </ul>
 
-        <p>The Python resolver is bundled inside the plugin — no extra setup needed beyond the above. Use <b>Settings &gt; Tools &gt; Locklane &gt; Validate Setup</b> to check your environment.</p>
+        <p>The Python resolver is bundled inside the plugin — no extra setup needed beyond the above. Use <b>Settings &gt; Tools &gt; LockLane &gt; Validate Setup</b> to check your environment.</p>
     ]]></description>
 
     <change-notes><![CDATA[
@@ -59,24 +59,24 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow
-                id="Locklane"
+                id="LockLane"
                 anchor="right"
-                factoryClass="io.locklane.LocklaneToolWindowFactory"
+                factoryClass="io.locklane.LockLaneToolWindowFactory"
                 canCloseContents="false"
-                icon="/icons/locklaneToolWindow.svg"/>
+                icon="/icons/lockLaneToolWindow.svg"/>
 
         <projectConfigurable
                 parentId="tools"
-                instance="io.locklane.settings.LocklaneConfigurable"
+                instance="io.locklane.settings.LockLaneConfigurable"
                 id="io.locklane.settings"
-                displayName="Locklane"
+                displayName="LockLane"
                 nonDefaultProject="true"/>
-        <projectService serviceImplementation="io.locklane.settings.LocklaneSettings"/>
+        <projectService serviceImplementation="io.locklane.settings.LockLaneSettings"/>
         <projectService serviceImplementation="io.locklane.service.ResolverService"/>
-        <projectService serviceImplementation="io.locklane.service.LocklaneProjectState"/>
+        <projectService serviceImplementation="io.locklane.service.LockLaneProjectState"/>
         <projectService serviceImplementation="io.locklane.service.RollbackHistoryService"/>
 
-        <notificationGroup id="Locklane" displayType="BALLOON"/>
+        <notificationGroup id="LockLane" displayType="BALLOON"/>
 
         <postStartupActivity implementation="io.locklane.activity.AutoScanActivity"/>
 

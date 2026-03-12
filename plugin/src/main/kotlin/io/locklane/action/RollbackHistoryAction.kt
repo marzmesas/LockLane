@@ -20,7 +20,7 @@ class RollbackHistoryAction : AnAction("History", "View and restore previous man
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val panel = findLocklanePanel(project) ?: return
+        val panel = findLockLanePanel(project) ?: return
         val manifest = panel.state.manifestPath ?: return
 
         val service = RollbackHistoryService.getInstance(project)
@@ -39,7 +39,7 @@ class RollbackHistoryAction : AnAction("History", "View and restore previous man
                     val confirm = JOptionPane.showConfirmDialog(
                         SwingUtilities.getWindowAncestor(panel),
                         "Restore manifest from ${selected.timestamp}?\nThis will overwrite the current file.",
-                        "Locklane — Confirm Restore",
+                        "LockLane — Confirm Restore",
                         JOptionPane.YES_NO_OPTION,
                         JOptionPane.WARNING_MESSAGE,
                     )
@@ -58,7 +58,7 @@ class RollbackHistoryAction : AnAction("History", "View and restore previous man
     }
 
     override fun update(e: AnActionEvent) {
-        val panel = e.project?.let { findLocklanePanel(it) }
+        val panel = e.project?.let { findLockLanePanel(it) }
         e.presentation.isEnabled = panel?.state?.manifestPath != null
     }
 
@@ -77,7 +77,7 @@ class RollbackHistoryAction : AnAction("History", "View and restore previous man
         private val list = JBList(listModel)
 
         init {
-            title = "Locklane — Rollback History"
+            title = "LockLane — Rollback History"
             setOKButtonText("Restore")
             setCancelButtonText("Close")
             init()

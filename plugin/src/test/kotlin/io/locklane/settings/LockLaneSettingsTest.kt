@@ -5,11 +5,11 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
-class LocklaneSettingsTest {
+class LockLaneSettingsTest {
 
     @Test
     fun `default state has expected values`() {
-        val state = LocklaneSettings.State()
+        val state = LockLaneSettings.State()
         assertEquals("", state.pythonPath)
         assertEquals("uv", state.resolverPreference)
         assertTrue(state.extraIndexUrls.isEmpty())
@@ -20,7 +20,7 @@ class LocklaneSettingsTest {
 
     @Test
     fun `state mutation works correctly`() {
-        val state = LocklaneSettings.State()
+        val state = LockLaneSettings.State()
         state.pythonPath = "/usr/bin/python3"
         state.resolverPreference = "pip-tools"
         state.extraIndexUrls.add("https://pypi.example.com/simple/")
@@ -38,12 +38,12 @@ class LocklaneSettingsTest {
 
     @Test
     fun `state copy preserves values`() {
-        val source = LocklaneSettings.State()
+        val source = LockLaneSettings.State()
         source.pythonPath = "/custom/python"
         source.resolverPreference = "pip-tools"
         source.timeoutSeconds = 60
 
-        val target = LocklaneSettings.State()
+        val target = LockLaneSettings.State()
         XmlSerializerUtil.copyBean(source, target)
 
         assertEquals("/custom/python", target.pythonPath)
@@ -53,15 +53,15 @@ class LocklaneSettingsTest {
 
     @Test
     fun `PersistentStateComponent getState returns state`() {
-        val settings = LocklaneSettings()
+        val settings = LockLaneSettings()
         assertNotNull(settings.state)
         assertEquals("uv", settings.state.resolverPreference)
     }
 
     @Test
     fun `loadState copies values into internal state`() {
-        val settings = LocklaneSettings()
-        val newState = LocklaneSettings.State()
+        val settings = LockLaneSettings()
+        val newState = LockLaneSettings.State()
         newState.pythonPath = "/loaded/python"
         newState.timeoutSeconds = 42
 

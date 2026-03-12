@@ -7,7 +7,7 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import io.locklane.service.ResolverService
-import io.locklane.settings.LocklaneSettings
+import io.locklane.settings.LockLaneSettings
 import java.nio.file.Files
 
 class RunPlanAction : AnAction("Run Plan", "Generate an upgrade plan", AllIcons.Actions.Execute) {
@@ -16,12 +16,12 @@ class RunPlanAction : AnAction("Run Plan", "Generate an upgrade plan", AllIcons.
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val panel = findLocklanePanel(project) ?: return
+        val panel = findLockLanePanel(project) ?: return
         val manifest = panel.state.manifestPath ?: return
 
         panel.setBusy(true)
 
-        object : Task.Backgroundable(project, "Locklane: Generating plan...", true) {
+        object : Task.Backgroundable(project, "LockLane: Generating plan...", true) {
             override fun run(indicator: ProgressIndicator) {
                 indicator.isIndeterminate = true
                 indicator.text = "Resolving dependencies and simulating candidates..."
@@ -31,7 +31,7 @@ class RunPlanAction : AnAction("Run Plan", "Generate an upgrade plan", AllIcons.
                 Files.writeString(tempFile, rawJson)
 
                 // Filter out ignored packages
-                val ignored = LocklaneSettings.getInstance(project).state.ignoredPackages
+                val ignored = LockLaneSettings.getInstance(project).state.ignoredPackages
                     .map { it.lowercase() }.toSet()
                 val filteredPlan = if (ignored.isEmpty()) plan else plan.copy(
                     safeUpdates = plan.safeUpdates.filter { it.packageName.lowercase() !in ignored },
@@ -61,11 +61,11 @@ class RunPlanAction : AnAction("Run Plan", "Generate an upgrade plan", AllIcons.
     private fun runAuditAndEnrich(
         project: com.intellij.openapi.project.Project,
         manifest: java.nio.file.Path,
-        panel: io.locklane.ui.LocklanePanel,
+        panel: io.locklane.ui.LockLanePanel,
     ) {
         val service = ResolverService.getInstance(project)
 
-        object : Task.Backgroundable(project, "Locklane: Scanning vulnerabilities...", true) {
+        object : Task.Backgroundable(project, "LockLane: Scanning vulnerabilities...", true) {
             override fun run(indicator: ProgressIndicator) {
                 indicator.isIndeterminate = true
                 try {
@@ -79,7 +79,7 @@ class RunPlanAction : AnAction("Run Plan", "Generate an upgrade plan", AllIcons.
             }
         }.queue()
 
-        object : Task.Backgroundable(project, "Locklane: Fetching package links...", true) {
+        object : Task.Backgroundable(project, "LockLane: Fetching package links...", true) {
             override fun run(indicator: ProgressIndicator) {
                 indicator.isIndeterminate = true
                 try {
@@ -95,7 +95,7 @@ class RunPlanAction : AnAction("Run Plan", "Generate an upgrade plan", AllIcons.
     }
 
     override fun update(e: AnActionEvent) {
-        val panel = e.project?.let { findLocklanePanel(it) }
+        val panel = e.project?.let { findLockLanePanel(it) }
         e.presentation.isEnabled = panel?.state?.canRunPlan == true
     }
 }

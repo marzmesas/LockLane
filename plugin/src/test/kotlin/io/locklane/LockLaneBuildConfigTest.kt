@@ -3,7 +3,7 @@ package io.locklane
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
-class LocklaneBuildConfigTest {
+class LockLaneBuildConfigTest {
 
     @Test
     fun `plugin version should follow snapshot convention during bootstrap`() {

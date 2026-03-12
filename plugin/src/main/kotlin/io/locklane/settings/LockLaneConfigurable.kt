@@ -12,9 +12,9 @@ import com.intellij.ui.dsl.builder.toNullableProperty
 import io.locklane.service.PythonDiscovery
 import javax.swing.JLabel
 
-class LocklaneConfigurable(private val project: Project) : BoundConfigurable("Locklane") {
+class LockLaneConfigurable(private val project: Project) : BoundConfigurable("LockLane") {
 
-    private val settings get() = LocklaneSettings.getInstance(project)
+    private val settings get() = LockLaneSettings.getInstance(project)
     private val validationLabel = JLabel("")
 
     override fun createPanel() = panel {

@@ -11,7 +11,7 @@ class SelectManifestAction : AnAction("Select Manifest", "Choose a dependency ma
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val panel = findLocklanePanel(project) ?: return
+        val panel = findLockLanePanel(project) ?: return
 
         val descriptor = FileChooserDescriptor(true, false, false, false, false, false)
             .withTitle("Select Dependency Manifest")

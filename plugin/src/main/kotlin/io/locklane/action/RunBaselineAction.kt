@@ -11,12 +11,12 @@ class RunBaselineAction : AnAction("Baseline", "Show current dependency versions
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val panel = findLocklanePanel(project) ?: return
+        val panel = findLockLanePanel(project) ?: return
         val manifest = panel.state.manifestPath ?: return
 
         panel.setBusy(true)
 
-        object : Task.Backgroundable(project, "Locklane: Reading baseline...", true) {
+        object : Task.Backgroundable(project, "LockLane: Reading baseline...", true) {
             override fun run(indicator: ProgressIndicator) {
                 indicator.isIndeterminate = true
                 indicator.text = "Parsing dependencies and resolving versions..."
@@ -40,7 +40,7 @@ class RunBaselineAction : AnAction("Baseline", "Show current dependency versions
     }
 
     override fun update(e: AnActionEvent) {
-        val panel = e.project?.let { findLocklanePanel(it) }
+        val panel = e.project?.let { findLockLanePanel(it) }
         e.presentation.isEnabled = panel?.state?.canRunPlan == true
     }
 }
