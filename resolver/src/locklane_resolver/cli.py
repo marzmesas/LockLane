@@ -28,6 +28,7 @@ from .simulator import simulate_candidate
 from .verifier import verify_plan as run_verify_plan
 from .verifier import write_log_file
 from .applier import apply_plan as run_apply_plan
+from .osv import audit_manifest
 from .pyproject_parser import parse_pyproject_dependencies
 
 SUPPORTED_RESOLVERS = {"uv": "uv", "pip-tools": "pip-compile"}
@@ -358,6 +359,51 @@ def apply_cmd(
     }
 
 
+def audit_cmd(manifest: Path) -> dict[str, Any]:
+    """Run vulnerability audit against OSV database."""
+    return audit_manifest(manifest)
+
+
+def enrich_cmd(manifest: Path) -> dict[str, Any]:
+    """Fetch changelog and project URLs from PyPI for manifest dependencies."""
+    from .pypi import fetch_versions  # noqa: F401 — reuse the same urllib pattern
+
+    dependencies = parse_manifest(manifest)
+    packages: dict[str, dict[str, str | None]] = {}
+
+    for dep in dependencies:
+        try:
+            url = f"https://pypi.org/pypi/{dep.name}/json"
+            req = urllib.request.Request(url, headers={"Accept": "application/json"})
+            with urllib.request.urlopen(req, timeout=15) as resp:  # noqa: S310
+                data = json.loads(resp.read().decode("utf-8"))
+
+            info = data.get("info", {})
+            project_urls = info.get("project_urls") or {}
+            home_page = info.get("home_page", "")
+
+            changelog_url = None
+            for key, value in project_urls.items():
+                if any(kw in key.lower() for kw in ("changelog", "changes", "release", "history", "what's new")):
+                    changelog_url = value
+                    break
+
+            packages[dep.name] = {
+                "changelog_url": changelog_url,
+                "home_page": home_page or None,
+            }
+        except Exception:
+            packages[dep.name] = {"changelog_url": None, "home_page": None}
+
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "timestamp_utc": now_utc_iso(),
+        "status": "ok",
+        "manifest_path": str(manifest),
+        "packages": packages,
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Create CLI parser."""
     parser = argparse.ArgumentParser(prog="locklane-resolver", description="Locklane resolver worker")
@@ -413,6 +459,12 @@ def build_parser() -> argparse.ArgumentParser:
     apply_parser.add_argument("--plan-json", required=True, type=Path, help="Path to plan JSON file")
     apply_parser.add_argument("--output", type=Path, default=None, help="Write modified manifest to this path instead of in-place")
     apply_parser.add_argument("--dry-run", action="store_true", help="Preview changes without writing")
+
+    audit_parser = subparsers.add_parser("audit", help="Scan dependencies for known vulnerabilities via OSV")
+    add_common(audit_parser)
+
+    enrich_parser = subparsers.add_parser("enrich", help="Fetch changelog and project URLs from PyPI")
+    add_common(enrich_parser)
 
     return parser
 
@@ -471,6 +523,10 @@ def main(argv: list[str] | None = None) -> int:
             output=args.output,
             dry_run=args.dry_run,
         )
+    elif args.command == "audit":
+        payload = audit_cmd(args.manifest)
+    elif args.command == "enrich":
+        payload = enrich_cmd(args.manifest)
     else:
         payload = verify(args.manifest, args.resolver, args.verify_cmd)
 
