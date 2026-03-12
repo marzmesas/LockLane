@@ -87,6 +87,12 @@ sourceSets.main {
 }
 
 tasks {
+    buildPlugin {
+        from(rootProject.file("../LICENSE")) {
+            into(".")
+        }
+    }
+
     runIde {
         jvmArgs("-Xmx2g")
     }
