@@ -9,14 +9,17 @@ import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.content.ContentFactory
 import io.locklane.action.ApplyPlanAction
+import io.locklane.action.RollbackHistoryAction
 import io.locklane.action.RunPlanAction
 import io.locklane.action.SelectManifestAction
 import io.locklane.action.VerifyPlanAction
 import io.locklane.activity.AutoScanActivity
 import io.locklane.service.LocklaneProjectState
+import io.locklane.settings.LocklaneSettings
 import io.locklane.ui.LocklanePanel
 import java.awt.BorderLayout
 import java.io.File
+import java.nio.file.Path
 import javax.swing.JOptionPane
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
@@ -32,6 +35,8 @@ class LocklaneToolWindowFactory : ToolWindowFactory {
             add(RunPlanAction())
             add(VerifyPlanAction())
             add(ApplyPlanAction())
+            add(Separator())
+            add(RollbackHistoryAction())
         }
 
         val toolbar = ActionManager.getInstance()
@@ -52,7 +57,13 @@ class LocklaneToolWindowFactory : ToolWindowFactory {
             panel.setManifest(projectState.manifestPath!!)
             panel.showPlan(projectState.lastPlan!!, projectState.lastPlanJson!!)
         } else {
-            autoDetectManifest(project, panel)
+            // Try persisted manifest from previous session
+            val persisted = LocklaneSettings.getInstance(project).state.lastManifestPath
+            if (persisted.isNotBlank() && Path.of(persisted).toFile().isFile) {
+                panel.setManifest(Path.of(persisted))
+            } else {
+                autoDetectManifest(project, panel)
+            }
         }
     }
 

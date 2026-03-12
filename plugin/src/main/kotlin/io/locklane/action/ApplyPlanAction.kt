@@ -9,6 +9,7 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import io.locklane.model.SafeUpdate
 import io.locklane.service.LockFileService
 import io.locklane.service.ResolverService
+import io.locklane.service.RollbackHistoryService
 import io.locklane.settings.LocklaneSettings
 import java.nio.file.Files
 import java.nio.file.Path
@@ -92,6 +93,13 @@ class ApplyPlanAction : AnAction("Apply Plan", "Apply the plan (dry-run first)",
         object : Task.Backgroundable(project, "Locklane: Applying plan...", true) {
             override fun run(indicator: ProgressIndicator) {
                 indicator.isIndeterminate = true
+                // Save rollback before applying
+                try {
+                    RollbackHistoryService.getInstance(project).saveRollback(
+                        manifest, planJson, 0,
+                    )
+                } catch (_: Exception) { /* best effort */ }
+
                 indicator.text = "Applying updates to manifest..."
                 val service = ResolverService.getInstance(project)
                 val result = service.runApply(manifest, planJson, dryRun = false, indicator = indicator)
