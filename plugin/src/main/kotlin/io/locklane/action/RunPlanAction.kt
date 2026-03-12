@@ -6,6 +6,7 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import io.locklane.service.ResolverService
+import io.locklane.settings.LocklaneSettings
 import java.nio.file.Files
 
 class RunPlanAction : AnAction("Run Plan", "Generate an upgrade plan", AllIcons.Actions.Execute) {
@@ -25,9 +26,19 @@ class RunPlanAction : AnAction("Run Plan", "Generate an upgrade plan", AllIcons.
                 val (plan, rawJson) = service.runPlanRaw(manifest, indicator)
                 val tempFile = Files.createTempFile("locklane-plan-", ".json")
                 Files.writeString(tempFile, rawJson)
+
+                // Filter out ignored packages
+                val ignored = LocklaneSettings.getInstance(project).state.ignoredPackages
+                    .map { it.lowercase() }.toSet()
+                val filteredPlan = if (ignored.isEmpty()) plan else plan.copy(
+                    safeUpdates = plan.safeUpdates.filter { it.packageName.lowercase() !in ignored },
+                    blockedUpdates = plan.blockedUpdates.filter { it.packageName.lowercase() !in ignored },
+                    inconclusiveUpdates = plan.inconclusiveUpdates.filter { it.packageName.lowercase() !in ignored },
+                )
+
                 com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
                     panel.setBusy(false)
-                    panel.showPlan(plan, tempFile)
+                    panel.showPlan(filteredPlan, tempFile)
                 }
                 // Run audit and enrich in background after plan
                 runAuditAndEnrich(project, manifest, panel)

@@ -20,6 +20,7 @@ class LocklaneSettings : PersistentStateComponent<LocklaneSettings.State> {
         var resolverSourcePath: String = "",
         var autoScanEnabled: Boolean = true,
         var lastManifestPath: String = "",
+        var ignoredPackages: MutableList<String> = mutableListOf(),
     )
 
     private var myState = State()
