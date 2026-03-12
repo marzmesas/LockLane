@@ -3,6 +3,7 @@ package io.locklane.activity
 import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
@@ -67,14 +68,28 @@ class AutoScanActivity : ProjectActivity {
                             // Notification group may not be available
                         }
                     }
-                } catch (_: Exception) {
-                    // Auto-scan failures are silent
+                } catch (e: Exception) {
+                    LOG.info("Locklane auto-scan failed: ${e.message}")
+                    com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                        try {
+                            NotificationGroupManager.getInstance()
+                                .getNotificationGroup("Locklane")
+                                .createNotification(
+                                    "Locklane",
+                                    "Auto-scan failed: ${e.message ?: "unknown error"}. Check Settings > Tools > Locklane.",
+                                    NotificationType.WARNING,
+                                )
+                                .notify(project)
+                        } catch (_: Exception) { }
+                    }
                 }
             }
         }.queue()
     }
 
     companion object {
+        private val LOG = Logger.getInstance(AutoScanActivity::class.java)
+
         val MANIFEST_NAMES = listOf(
             "requirements.in",
             "requirements.txt",

@@ -1,5 +1,6 @@
 package io.locklane.service
 
+import com.intellij.openapi.diagnostic.Logger
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -10,6 +11,8 @@ data class LockFileInfo(
 )
 
 object LockFileService {
+
+    private val LOG = Logger.getInstance(LockFileService::class.java)
 
     fun detectLockFile(manifestPath: Path, resolverPreference: String): LockFileInfo? {
         val name = manifestPath.fileName.toString()
@@ -37,7 +40,8 @@ object LockFileService {
     private fun detectPyprojectLockTool(manifestPath: Path, parent: Path): LockFileInfo? {
         val content = try {
             Files.readString(manifestPath)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            LOG.warn("Failed to read pyproject.toml for lock file detection: ${e.message}")
             return null
         }
 

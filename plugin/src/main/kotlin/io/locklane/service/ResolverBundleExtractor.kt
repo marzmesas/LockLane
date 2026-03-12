@@ -55,10 +55,12 @@ object ResolverBundleExtractor {
         }
 
         // Fallback: try known module files
+        LOG.warn("Bundled resolver manifest.txt not found, using fallback file list")
         return listOf(
             "__init__.py", "__main__.py", "cli.py", "resolver.py",
             "planner.py", "graph.py", "cache.py", "pypi.py",
             "verifier.py", "simulator.py", "models.py", "applier.py",
+            "osv.py", "pyproject_parser.py",
         )
     }
 

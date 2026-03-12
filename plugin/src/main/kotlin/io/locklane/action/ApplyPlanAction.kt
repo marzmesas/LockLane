@@ -3,6 +3,7 @@ package io.locklane.action
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -13,10 +14,13 @@ import io.locklane.service.RollbackHistoryService
 import io.locklane.settings.LocklaneSettings
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.TimeUnit
 import javax.swing.JOptionPane
 import javax.swing.SwingUtilities
 
 class ApplyPlanAction : AnAction("Apply Plan", "Apply the plan (dry-run first)", AllIcons.Diff.ApplyNotConflicts) {
+
+    private val log = Logger.getInstance(ApplyPlanAction::class.java)
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
@@ -98,7 +102,9 @@ class ApplyPlanAction : AnAction("Apply Plan", "Apply the plan (dry-run first)",
                     RollbackHistoryService.getInstance(project).saveRollback(
                         manifest, planJson, 0,
                     )
-                } catch (_: Exception) { /* best effort */ }
+                } catch (e: Exception) {
+                    log.info("Rollback save failed: ${e.message}")
+                }
 
                 indicator.text = "Applying updates to manifest..."
                 val service = ResolverService.getInstance(project)
@@ -150,13 +156,18 @@ class ApplyPlanAction : AnAction("Apply Plan", "Apply the plan (dry-run first)",
                 indicator.isIndeterminate = true
                 indicator.text = "Running ${lockInfo.toolName}..."
 
+                val settings = LocklaneSettings.getInstance(project)
                 val process = ProcessBuilder(lockInfo.command)
                     .directory(manifest.parent?.toFile())
                     .redirectErrorStream(true)
                     .start()
 
                 val output = process.inputStream.bufferedReader().readText()
-                val exitCode = process.waitFor()
+                val finished = process.waitFor(settings.state.timeoutSeconds.toLong(), TimeUnit.SECONDS)
+                if (!finished) {
+                    process.destroyForcibly()
+                }
+                val exitCode = if (finished) process.exitValue() else -1
 
                 com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
                     panel.setBusy(false)

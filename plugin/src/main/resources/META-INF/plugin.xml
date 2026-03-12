@@ -4,14 +4,22 @@
     <vendor email="mmesasro@gmail.com" url="https://github.com/marzmesas">Locklane</vendor>
 
     <description><![CDATA[
-        <p>Locklane plans safe Python dependency upgrades for requirements files with conflict-aware guidance.</p>
+        <p>Locklane plans safe Python dependency upgrades with conflict-aware guidance. Supports <code>requirements.txt</code>, <code>requirements.in</code>, and <code>pyproject.toml</code> (PEP 621 and Poetry).</p>
 
         <h3>Features</h3>
         <ul>
-            <li><b>Upgrade planning</b> — scans pinned dependencies for available updates and classifies each as safe, blocked, or inconclusive</li>
+            <li><b>Baseline view</b> — see all current pinned and resolved dependency versions at a glance</li>
+            <li><b>Upgrade planning</b> — scans dependencies for available updates and classifies each as safe, blocked, or inconclusive</li>
             <li><b>Conflict detection</b> — shows exactly which transitive dependencies block an upgrade, with full conflict chain details</li>
+            <li><b>Vulnerability scanning</b> — checks dependencies against the OSV database for known security issues</li>
+            <li><b>Changelog links</b> — quick links to changelogs and project pages from the plan view</li>
+            <li><b>Per-package selective apply</b> — choose exactly which updates to apply with checkboxes</li>
             <li><b>Verification</b> — runs your test suite against proposed changes in a disposable venv before touching any files</li>
-            <li><b>Apply</b> — writes approved upgrades to your requirements file, with dry-run support</li>
+            <li><b>Apply with dry-run</b> — preview changes before writing, with automatic lock file regeneration</li>
+            <li><b>Rollback history</b> — restore previous manifest versions if an update causes issues</li>
+            <li><b>Gutter icons</b> — see update status (patch/minor/major) next to each dependency in the editor</li>
+            <li><b>Auto-scan</b> — automatically checks for updates when you open a project</li>
+            <li><b>Ignore list</b> — exclude packages you don't want to upgrade</li>
             <li><b>Resolver flexibility</b> — uses <code>uv</code> by default with <code>pip-tools</code> as automatic fallback</li>
         </ul>
 
@@ -21,7 +29,7 @@
             <li><a href="https://docs.astral.sh/uv/">uv</a> or <a href="https://pip-tools.readthedocs.io/">pip-tools</a></li>
         </ul>
 
-        <p>The Python resolver is bundled inside the plugin — no extra setup needed beyond the above.</p>
+        <p>The Python resolver is bundled inside the plugin — no extra setup needed beyond the above. Use <b>Settings &gt; Tools &gt; Locklane &gt; Validate Setup</b> to check your environment.</p>
     ]]></description>
 
     <change-notes><![CDATA[
@@ -30,8 +38,18 @@
             <li>Initial release</li>
             <li>Upgrade plan generation with safe/blocked/inconclusive classification</li>
             <li>Conflict chain visualization for blocked upgrades</li>
+            <li>Support for requirements.txt, requirements.in, and pyproject.toml (PEP 621 + Poetry)</li>
+            <li>Baseline view showing current dependency versions</li>
+            <li>Vulnerability scanning via OSV database</li>
+            <li>Changelog and project links from PyPI</li>
+            <li>Per-package selective apply with checkboxes</li>
             <li>Verification lane — test proposed upgrades in disposable venvs</li>
-            <li>Apply upgrades to lockfile with dry-run support</li>
+            <li>Apply upgrades with dry-run preview and lock file regeneration</li>
+            <li>Rollback history — restore previous manifests after apply</li>
+            <li>Gutter icons for dependency update status in the editor</li>
+            <li>Auto-scan on project open with configurable toggle</li>
+            <li>Ignore list for excluding packages from plans</li>
+            <li>Settings validation button to check environment setup</li>
             <li>Bundled Python resolver — works out of the box</li>
             <li>Configurable resolver preference (uv / pip-tools), timeouts, and private indexes</li>
         </ul>
@@ -63,7 +81,7 @@
         <postStartupActivity implementation="io.locklane.activity.AutoScanActivity"/>
 
         <codeInsight.lineMarkerProvider
-                language=""
+                language="TEXT"
                 implementationClass="io.locklane.editor.DependencyLineMarkerProvider"/>
     </extensions>
 </idea-plugin>

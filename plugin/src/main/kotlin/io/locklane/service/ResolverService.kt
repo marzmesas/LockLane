@@ -3,6 +3,7 @@ package io.locklane.service
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.intellij.openapi.components.Service
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import io.locklane.model.ApplyResult
@@ -17,6 +18,8 @@ import java.nio.file.Path
 
 @Service(Service.Level.PROJECT)
 class ResolverService(private val project: Project) {
+
+    private val log = Logger.getInstance(ResolverService::class.java)
 
     val objectMapper: ObjectMapper = ObjectMapper()
         .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
@@ -164,16 +167,22 @@ class ResolverService(private val project: Project) {
     private fun resolveResolverSourcePath(settings: LocklaneSettings): String? {
         // 1. Explicit user override
         if (settings.state.resolverSourcePath.isNotBlank()) {
+            log.info("Using configured resolver source path: ${settings.state.resolverSourcePath}")
             return settings.state.resolverSourcePath
         }
         // 2. Bundled resolver (primary for end users)
         ResolverBundleExtractor.extractBundledResolver()?.let {
+            log.debug("Using bundled resolver at: $it")
             return it.toString()
         }
-        // 3. Dev fallback: resolver/src next to project
+        // 3. Dev fallback: resolver/src next to project (only useful during plugin development)
         val basePath = project.basePath ?: return null
         val candidate = File(basePath, "resolver/src")
-        return if (candidate.isDirectory) candidate.absolutePath else null
+        if (candidate.isDirectory) {
+            log.info("Using dev fallback resolver at: ${candidate.absolutePath}")
+            return candidate.absolutePath
+        }
+        return null
     }
 
     private fun checkResolverToolAvailable(preference: String) {

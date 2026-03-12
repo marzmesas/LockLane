@@ -3,6 +3,7 @@ package io.locklane.action
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
 import io.locklane.service.ResolverService
@@ -10,6 +11,8 @@ import io.locklane.settings.LocklaneSettings
 import java.nio.file.Files
 
 class RunPlanAction : AnAction("Run Plan", "Generate an upgrade plan", AllIcons.Actions.Execute) {
+
+    private val log = Logger.getInstance(RunPlanAction::class.java)
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
@@ -70,8 +73,8 @@ class RunPlanAction : AnAction("Run Plan", "Generate an upgrade plan", AllIcons.
                     com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
                         panel.updateVulnerabilities(audit)
                     }
-                } catch (_: Exception) {
-                    // Audit is best-effort; don't block the user
+                } catch (e: Exception) {
+                    log.info("Vulnerability audit failed: ${e.message}")
                 }
             }
         }.queue()
@@ -84,8 +87,8 @@ class RunPlanAction : AnAction("Run Plan", "Generate an upgrade plan", AllIcons.
                     com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
                         panel.updateLinks(enrich)
                     }
-                } catch (_: Exception) {
-                    // Enrich is best-effort; don't block the user
+                } catch (e: Exception) {
+                    log.info("Package enrichment failed: ${e.message}")
                 }
             }
         }.queue()
