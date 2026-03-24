@@ -95,6 +95,7 @@ class PlanResultPanel : JPanel() {
     private val vulnTable = JBTable(vulnModel).apply {
         emptyText.text = "(no vulnerabilities found)"
         columnModel.getColumn(3).cellRenderer = SeverityCellRenderer()
+        autoResizeMode = JTable.AUTO_RESIZE_OFF
     }
 
     private val safeSeparator = TitledSeparator("Safe Updates")
@@ -259,7 +260,6 @@ class PlanResultPanel : JPanel() {
             }
             columnModel.getColumn(col).preferredWidth = maxWidth + 16
         }
-        table.autoResizeMode = JBTable.AUTO_RESIZE_LAST_COLUMN
     }
 
     private class SafeTableModel : AbstractTableModel() {
