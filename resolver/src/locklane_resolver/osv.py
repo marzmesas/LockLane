@@ -7,7 +7,6 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from .cli import parse_manifest
 from .models import SCHEMA_VERSION, now_utc_iso
 
 OSV_API_URL = "https://api.osv.dev/v1/query"
@@ -70,6 +69,9 @@ def _extract_references(vuln: dict[str, Any]) -> list[dict[str, str]]:
 
 def audit_manifest(manifest_path: Path, timeout: int = 15) -> dict[str, Any]:
     """Audit all dependencies in a manifest for known vulnerabilities."""
+    # Import here to avoid circular import (cli -> osv -> cli)
+    from .cli import parse_manifest
+
     dependencies = parse_manifest(manifest_path)
 
     packages: list[dict[str, Any]] = []
