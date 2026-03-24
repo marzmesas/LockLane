@@ -1,0 +1,24 @@
+# LockLane testbench – uv-managed project with .venv
+# Exercises: pyproject.toml parsing, uv resolver, venv Python discovery
+# Last pinned: intentionally outdated versions
+
+[project]
+name = "locklane-testbench-uv"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "flask==2.3.0",
+    "httpx==0.24.0",
+    "pydantic==2.0.0",
+    "rich==13.3.0",
+    "click==8.1.3",
+    "sqlalchemy==2.0.0",
+    "alembic==1.10.0",
+    "python-dotenv==1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==7.3.0",
+    "ruff==0.0.270",
+]
