@@ -2,7 +2,6 @@ package io.locklane.service
 
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.diagnostic.Logger
-import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -16,14 +15,17 @@ object ResolverBundleExtractor {
 
     fun extractBundledResolver(): Path? {
         val initStream = javaClass.getResourceAsStream("$RESOURCE_PREFIX$ENTRY_POINT") ?: return null
+        initStream.close()
 
         val targetDir = Path.of(PathManager.getTempPath(), "locklane-resolver")
         val packageDir = targetDir.resolve("locklane_resolver")
-        val targetInit = packageDir.resolve(ENTRY_POINT)
+        val checksumFile = targetDir.resolve(".checksum")
 
-        val bundledInitBytes = initStream.use { it.readBytes() }
+        // Compute a checksum over all bundled files to detect any change
+        val bundledFiles = listBundledResources()
+        val bundledChecksum = computeBundleChecksum(bundledFiles)
 
-        if (Files.exists(targetInit) && hashOf(bundledInitBytes) == hashOfFile(targetInit)) {
+        if (Files.exists(checksumFile) && Files.readString(checksumFile).trim() == bundledChecksum) {
             LOG.debug("Bundled resolver already extracted and up to date")
             return targetDir
         }
@@ -31,17 +33,16 @@ object ResolverBundleExtractor {
         LOG.info("Extracting bundled resolver to $targetDir")
         Files.createDirectories(packageDir)
 
-        // Write the __init__.py we already read
-        Files.write(targetInit, bundledInitBytes)
-
-        // Extract remaining .py files by scanning the resource listing
-        for (name in listBundledResources()) {
-            if (name == ENTRY_POINT) continue
+        // Extract all .py files
+        for (name in bundledFiles) {
             val resourceStream = javaClass.getResourceAsStream("$RESOURCE_PREFIX$name") ?: continue
             val dest = packageDir.resolve(name)
             Files.createDirectories(dest.parent)
             resourceStream.use { Files.copy(it, dest, StandardCopyOption.REPLACE_EXISTING) }
         }
+
+        // Write checksum so we know when to re-extract
+        Files.writeString(checksumFile, bundledChecksum)
 
         return targetDir
     }
@@ -64,12 +65,13 @@ object ResolverBundleExtractor {
         )
     }
 
-    private fun hashOf(bytes: ByteArray): String {
+    private fun computeBundleChecksum(fileNames: List<String>): String {
         val digest = MessageDigest.getInstance("SHA-256")
-        return digest.digest(bytes).joinToString("") { "%02x".format(it) }
-    }
-
-    private fun hashOfFile(path: Path): String {
-        return hashOf(Files.readAllBytes(path))
+        for (name in fileNames.sorted()) {
+            val stream = javaClass.getResourceAsStream("$RESOURCE_PREFIX$name") ?: continue
+            digest.update(name.toByteArray())
+            stream.use { digest.update(it.readBytes()) }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 }

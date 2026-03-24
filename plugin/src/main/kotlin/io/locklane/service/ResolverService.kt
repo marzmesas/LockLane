@@ -94,7 +94,7 @@ class ResolverService(private val project: Project) {
             projectBasePath = project.basePath,
         ) ?: throw ResolverException("No Python interpreter found. Configure one in Settings > Tools > LockLane.")
 
-        checkResolverToolAvailable(settings.state.resolverPreference)
+        checkResolverToolAvailable(settings.state.resolverPreference, pythonPath)
 
         val cmd = mutableListOf(
             pythonPath, "-m", "locklane_resolver",
@@ -144,6 +144,32 @@ class ResolverService(private val project: Project) {
             env["PYTHONPATH"] = if (existing.isBlank()) resolverSrc else "$resolverSrc${File.pathSeparator}$existing"
         }
 
+        // Augment PATH so the subprocess can find uv/pip-compile even when IDE PATH is minimal
+        val pythonDir = File(pythonPath).parent
+        val currentPath = System.getenv("PATH") ?: ""
+        val extraDirs = mutableListOf<String>()
+        if (pythonDir != null && pythonDir !in currentPath.split(File.pathSeparator)) {
+            extraDirs += pythonDir  // e.g. .venv/bin where uv may live alongside python
+        }
+        val home = System.getProperty("user.home")
+        if (home != null) {
+            for (dir in listOf("$home/.local/bin", "$home/.cargo/bin")) {
+                if (dir !in currentPath.split(File.pathSeparator) && File(dir).isDirectory) {
+                    extraDirs += dir
+                }
+            }
+        }
+        if (System.getProperty("os.name").lowercase().contains("mac")) {
+            for (dir in listOf("/opt/homebrew/bin", "/usr/local/bin")) {
+                if (dir !in currentPath.split(File.pathSeparator) && File(dir).isDirectory) {
+                    extraDirs += dir
+                }
+            }
+        }
+        if (extraDirs.isNotEmpty()) {
+            env["PATH"] = (extraDirs + currentPath).joinToString(File.pathSeparator)
+        }
+
         // Pass through index and auth env vars
         val passthrough = listOf(
             "PIP_INDEX_URL", "PIP_EXTRA_INDEX_URL",
@@ -185,14 +211,14 @@ class ResolverService(private val project: Project) {
         return null
     }
 
-    private fun checkResolverToolAvailable(preference: String) {
+    private fun checkResolverToolAvailable(preference: String, pythonPath: String? = null) {
         val binaries = if (preference == "pip-tools") {
             listOf("pip-compile" to "pip-tools", "uv" to "uv")
         } else {
             listOf("uv" to "uv", "pip-compile" to "pip-tools")
         }
         for ((binary, _) in binaries) {
-            if (PythonDiscovery.findOnPath(binary) != null) return
+            if (PythonDiscovery.findOnPathOrNear(binary, pythonPath) != null) return
         }
         val names = binaries.joinToString(" or ") { it.second }
         throw ResolverException(

@@ -112,9 +112,9 @@ class LockLaneConfigurable(private val project: Project) : BoundConfigurable("Lo
             messages += "\u2714 Python: $pythonPath"
         }
 
-        // Check resolver tools
-        val uvPath = PythonDiscovery.findOnPath("uv")
-        val pipCompilePath = PythonDiscovery.findOnPath("pip-compile")
+        // Check resolver tools (also look near the found Python, e.g. in .venv/bin)
+        val uvPath = PythonDiscovery.findOnPathOrNear("uv", pythonPath)
+        val pipCompilePath = PythonDiscovery.findOnPathOrNear("pip-compile", pythonPath)
         if (uvPath != null) {
             messages += "\u2714 uv: $uvPath"
         } else {
