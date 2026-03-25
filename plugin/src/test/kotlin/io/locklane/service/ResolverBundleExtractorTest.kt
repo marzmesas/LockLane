@@ -40,10 +40,12 @@ class ResolverBundleExtractorTest {
     fun `extraction overwrites stale files`() {
         val result = ResolverBundleExtractor.extractBundledResolver() ?: return
         val initFile = result.resolve("locklane_resolver/__init__.py")
+        val checksumFile = result.resolve(".checksum")
 
-        // Corrupt the file to simulate a stale extraction
+        // Corrupt the file and invalidate the checksum to simulate a stale extraction
         val originalContent = Files.readAllBytes(initFile)
         Files.writeString(initFile, "# corrupted")
+        Files.deleteIfExists(checksumFile)
 
         // Re-extract should overwrite the corrupted file
         val result2 = ResolverBundleExtractor.extractBundledResolver()
@@ -54,6 +56,7 @@ class ResolverBundleExtractorTest {
             sha256(restoredContent),
             "Expected extraction to restore the original file",
         )
+        assertTrue(Files.exists(checksumFile), "Expected checksum file to be written")
     }
 
     @Test
