@@ -18,6 +18,7 @@ import java.awt.Color
 import java.awt.Component
 import java.awt.Cursor
 import java.awt.Dimension
+import java.awt.FlowLayout
 import java.awt.Font
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -105,6 +106,15 @@ class PlanResultPanel : JPanel() {
     private val vulnSeparator = TitledSeparator("Vulnerabilities")
     private val stepsSeparator = TitledSeparator("Ordered Steps")
 
+    private val batchBar = JPanel(FlowLayout(FlowLayout.LEFT, 8, 2)).apply {
+        alignmentX = LEFT_ALIGNMENT
+        maximumSize = Dimension(Int.MAX_VALUE, 28)
+        add(linkButton("All") { safeModel.selectAll(); fixCheckboxColumnWidth() })
+        add(linkButton("Patch") { safeModel.selectByBump("patch"); fixCheckboxColumnWidth() })
+        add(linkButton("Minor + Patch") { safeModel.selectByBump("minor", "patch"); fixCheckboxColumnWidth() })
+        add(linkButton("None") { safeModel.deselectAll(); fixCheckboxColumnWidth() })
+    }
+
     private val safeScroll = JBScrollPane(safeTable)
     private val blockedScroll = JBScrollPane(blockedTable)
     private val chainScroll = JBScrollPane(chainDetailArea)
@@ -112,7 +122,7 @@ class PlanResultPanel : JPanel() {
     private val vulnScroll = JBScrollPane(vulnTable)
     private val stepsScroll = JBScrollPane(stepsArea)
 
-    private val safeSection = section(safeSeparator, safeScroll)
+    private val safeSection = section(safeSeparator, batchBar, safeScroll)
     private val blockedSection = section(blockedSeparator, blockedScroll)
     private val chainSection = section(chainSeparator, chainScroll)
     private val inconclusiveSection = section(inconclusiveSeparator, inconclusiveScroll)
@@ -168,12 +178,7 @@ class PlanResultPanel : JPanel() {
 
         stepsArea.text = plan.orderedSteps.joinToString("\n") { "${it.step}. ${it.description}" }
 
-        // Fix checkbox column width after data load
-        safeTable.columnModel.getColumn(0).apply {
-            preferredWidth = 30
-            maxWidth = 30
-            minWidth = 30
-        }
+        fixCheckboxColumnWidth()
         autoSizeColumns(safeTable, skipColumns = setOf(0, 5))
         autoSizeColumns(blockedTable)
         autoSizeColumns(inconclusiveTable)
@@ -213,12 +218,7 @@ class PlanResultPanel : JPanel() {
     fun updateLinks(enrich: EnrichResult) {
         packageLinks = enrich.packages
         safeModel.fireTableDataChanged()
-        // Fix checkbox column width after table data change
-        safeTable.columnModel.getColumn(0).apply {
-            preferredWidth = 30
-            maxWidth = 30
-            minWidth = 30
-        }
+        fixCheckboxColumnWidth()
         revalidate()
         repaint()
     }
@@ -243,6 +243,14 @@ class PlanResultPanel : JPanel() {
         stepsSection.isVisible = false
         revalidate()
         repaint()
+    }
+
+    private fun fixCheckboxColumnWidth() {
+        safeTable.columnModel.getColumn(0).apply {
+            preferredWidth = 30
+            maxWidth = 30
+            minWidth = 30
+        }
     }
 
     private fun autoSizeColumns(table: JBTable, skipColumns: Set<Int> = emptySet()) {
@@ -270,6 +278,23 @@ class PlanResultPanel : JPanel() {
                 fireTableDataChanged()
             }
         var selected: BooleanArray = BooleanArray(0)
+
+        fun selectAll() {
+            selected.fill(true)
+            fireTableDataChanged()
+        }
+
+        fun deselectAll() {
+            selected.fill(false)
+            fireTableDataChanged()
+        }
+
+        fun selectByBump(vararg levels: String) {
+            for (i in data.indices) {
+                selected[i] = bumpSeverity(data[i].fromVersion, data[i].toVersion) in levels
+            }
+            fireTableDataChanged()
+        }
 
         override fun getRowCount() = data.size
         override fun getColumnCount() = 6
@@ -439,6 +464,14 @@ class PlanResultPanel : JPanel() {
         private const val TABLE_HEADER_HEIGHT = 28
         private const val TABLE_PADDING = 4
 
+        private fun linkButton(text: String, action: () -> Unit): javax.swing.JButton {
+            return javax.swing.JButton(text).apply {
+                putClientProperty("JButton.buttonType", "roundRect")
+                font = font.deriveFont(Font.PLAIN, 11f)
+                addActionListener { action() }
+            }
+        }
+
         fun bumpSeverity(from: String, to: String): String {
             val fromParts = from.split(".").mapNotNull { it.toIntOrNull() }
             val toParts = to.split(".").mapNotNull { it.toIntOrNull() }
@@ -450,15 +483,17 @@ class PlanResultPanel : JPanel() {
             }
         }
 
-        private fun section(separator: TitledSeparator, content: JComponent): JPanel {
+        private fun section(separator: TitledSeparator, vararg contents: JComponent): JPanel {
             return JPanel().apply {
                 layout = BoxLayout(this, BoxLayout.Y_AXIS)
                 alignmentX = LEFT_ALIGNMENT
                 separator.alignmentX = LEFT_ALIGNMENT
-                content.alignmentX = LEFT_ALIGNMENT
                 separator.maximumSize = Dimension(Int.MAX_VALUE, separator.preferredSize.height)
                 add(separator)
-                add(content)
+                for (c in contents) {
+                    c.alignmentX = LEFT_ALIGNMENT
+                    add(c)
+                }
             }
         }
 
