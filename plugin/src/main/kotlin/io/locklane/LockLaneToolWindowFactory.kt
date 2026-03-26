@@ -15,6 +15,7 @@ import io.locklane.action.RunPlanAction
 import io.locklane.action.SelectManifestAction
 import io.locklane.action.VerifyPlanAction
 import io.locklane.activity.AutoScanActivity
+import io.locklane.activity.VulnerabilityCheckActivity
 import io.locklane.service.LockLaneProjectState
 import io.locklane.settings.LockLaneSettings
 import io.locklane.ui.LockLanePanel
@@ -53,13 +54,9 @@ class LockLaneToolWindowFactory : ToolWindowFactory {
         val content = ContentFactory.getInstance().createContent(wrapper, "", false)
         toolWindow.contentManager.addContent(content)
 
-        // Check if auto-scan already ran and pre-populate the panel
-        val projectState = LockLaneProjectState.getInstance(project)
-        if (projectState.lastPlan != null && projectState.manifestPath != null) {
-            panel.setManifest(projectState.manifestPath!!)
-            panel.showPlan(projectState.lastPlan!!, projectState.lastPlanJson!!)
-        } else {
-            // Try persisted manifest from previous session
+        // Try to populate from startup scan cache
+        if (!tryPopulateFromCache(project, panel)) {
+            // No cached scan yet — try persisted manifest from previous session
             val persisted = LockLaneSettings.getInstance(project).state.lastManifestPath
             if (persisted.isNotBlank() && Path.of(persisted).toFile().isFile) {
                 panel.setManifest(Path.of(persisted))
@@ -67,6 +64,18 @@ class LockLaneToolWindowFactory : ToolWindowFactory {
                 autoDetectManifest(project, panel)
             }
         }
+    }
+
+    private fun tryPopulateFromCache(project: Project, panel: LockLanePanel): Boolean {
+        val projectState = LockLaneProjectState.getInstance(project)
+        val plan = projectState.lastPlan ?: return false
+        val jsonPath = projectState.lastPlanJson ?: return false
+        val manifestPath = projectState.manifestPath ?: return false
+        panel.setManifest(manifestPath)
+        panel.showPlan(plan, jsonPath)
+        projectState.lastAudit?.let { panel.updateVulnerabilities(it) }
+        projectState.lastEnrich?.let { panel.updateLinks(it) }
+        return true
     }
 
     private fun autoDetectManifest(project: Project, panel: LockLanePanel) {

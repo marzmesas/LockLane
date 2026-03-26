@@ -2,6 +2,8 @@ package io.locklane.service
 
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
+import io.locklane.model.AuditResult
+import io.locklane.model.EnrichResult
 import io.locklane.model.UpgradePlan
 import java.nio.file.Path
 
@@ -11,6 +13,8 @@ class LockLaneProjectState {
     var lastPlan: UpgradePlan? = null
     var lastPlanJson: Path? = null
     var manifestPath: Path? = null
+    var lastAudit: AuditResult? = null
+    var lastEnrich: EnrichResult? = null
 
     companion object {
         fun getInstance(project: Project): LockLaneProjectState =
