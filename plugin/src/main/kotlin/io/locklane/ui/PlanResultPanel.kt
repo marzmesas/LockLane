@@ -96,6 +96,7 @@ class PlanResultPanel : JPanel() {
     private val vulnTable = JBTable(vulnModel).apply {
         emptyText.text = "(no vulnerabilities found)"
         columnModel.getColumn(3).cellRenderer = SeverityCellRenderer()
+        columnModel.getColumn(4).cellRenderer = RiskCellRenderer()
         autoResizeMode = JTable.AUTO_RESIZE_OFF
     }
 
@@ -373,23 +374,24 @@ class PlanResultPanel : JPanel() {
         var data: List<PackageAudit> = emptyList()
             set(value) { field = value; fireTableDataChanged() }
 
-        private data class FlatRow(val pkg: String, val version: String, val vulnId: String, val severity: String, val summary: String)
+        private data class FlatRow(val pkg: String, val version: String, val vulnId: String, val severity: String, val risk: String, val summary: String)
 
         private val rows: List<FlatRow>
             get() = data.flatMap { pa ->
                 pa.vulnerabilities.map { v ->
-                    FlatRow(pa.packageName, pa.version, v.id, v.severity, v.summary)
+                    FlatRow(pa.packageName, pa.version, v.id, v.severity, classifySeverity(v.severity), v.summary)
                 }
             }
 
         override fun getRowCount() = rows.size
-        override fun getColumnCount() = 5
+        override fun getColumnCount() = 6
         override fun getColumnName(col: Int) = when (col) {
             0 -> "Package"
             1 -> "Version"
             2 -> "Vuln ID"
             3 -> "Severity"
-            4 -> "Summary"
+            4 -> "Risk"
+            5 -> "Summary"
             else -> ""
         }
         override fun getValueAt(row: Int, col: Int): Any {
@@ -399,7 +401,8 @@ class PlanResultPanel : JPanel() {
                 1 -> r.version
                 2 -> r.vulnId
                 3 -> r.severity
-                4 -> r.summary
+                4 -> r.risk
+                5 -> r.summary
                 else -> ""
             }
         }
@@ -428,13 +431,19 @@ class PlanResultPanel : JPanel() {
         ): Component {
             val comp = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, col)
             if (!isSelected) {
-                val sev = (value as? String)?.uppercase() ?: ""
-                foreground = when {
-                    sev.contains("CRITICAL") || sev.contains("HIGH") -> JBColor(Color(220, 80, 80), Color(220, 100, 100))
-                    sev.contains("MEDIUM") || sev.contains("MODERATE") -> JBColor(Color(200, 170, 50), Color(220, 190, 70))
-                    sev.contains("LOW") -> JBColor(Color(80, 180, 80), Color(100, 200, 100))
-                    else -> table.foreground
-                }
+                foreground = riskColor(classifySeverity(value as? String ?: ""), table.foreground)
+            }
+            return comp
+        }
+    }
+
+    private class RiskCellRenderer : DefaultTableCellRenderer() {
+        override fun getTableCellRendererComponent(
+            table: JTable, value: Any?, isSelected: Boolean, hasFocus: Boolean, row: Int, col: Int,
+        ): Component {
+            val comp = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, col)
+            if (!isSelected) {
+                foreground = riskColor(value as? String ?: "", table.foreground)
             }
             return comp
         }
@@ -509,6 +518,39 @@ class PlanResultPanel : JPanel() {
             scroll.minimumSize = Dimension(0, 40)
             scroll.preferredSize = Dimension(100, maxHeight)
             scroll.maximumSize = Dimension(Int.MAX_VALUE, maxHeight)
+        }
+
+        fun classifySeverity(severity: String): String {
+            val upper = severity.uppercase()
+            if (upper.contains("CRITICAL")) return "Critical"
+            if (upper.contains("HIGH")) return "High"
+            if (upper.contains("MEDIUM") || upper.contains("MODERATE")) return "Medium"
+            if (upper.contains("LOW")) return "Low"
+
+            // Parse CVSS vector for impact indicators
+            if (upper.startsWith("CVSS:")) {
+                val hasCriticalImpact = upper.contains("/C:H") && upper.contains("/I:H") && upper.contains("/A:H")
+                val hasHighImpact = upper.contains("/C:H") || upper.contains("/I:H") || upper.contains("/A:H") ||
+                    upper.contains("/VC:H") || upper.contains("/VI:H") || upper.contains("/VA:H")
+                val hasMediumImpact = upper.contains("/C:L") || upper.contains("/I:L") || upper.contains("/A:L")
+
+                return when {
+                    hasCriticalImpact && upper.contains("/AC:L") && upper.contains("/PR:N") -> "Critical"
+                    hasHighImpact -> "High"
+                    hasMediumImpact -> "Medium"
+                    else -> "Low"
+                }
+            }
+
+            return "Unknown"
+        }
+
+        private fun riskColor(risk: String, defaultColor: java.awt.Color): java.awt.Color = when (risk) {
+            "Critical" -> JBColor(Color(220, 40, 40), Color(230, 70, 70))
+            "High" -> JBColor(Color(230, 140, 30), Color(240, 160, 50))
+            "Medium" -> JBColor(Color(200, 170, 50), Color(220, 190, 70))
+            "Low" -> JBColor(Color(80, 180, 80), Color(100, 200, 100))
+            else -> defaultColor
         }
     }
 }
