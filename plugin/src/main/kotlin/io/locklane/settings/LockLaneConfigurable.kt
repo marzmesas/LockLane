@@ -73,6 +73,10 @@ class LockLaneConfigurable(private val project: Project) : BoundConfigurable("Lo
                 checkBox("Auto-scan dependencies on project open")
                     .bindSelected(settings.state::autoScanEnabled)
             }
+            row {
+                checkBox("Check for critical vulnerabilities on project open")
+                    .bindSelected(settings.state::vulnCheckOnOpen)
+            }
         }
 
         group("Verification") {

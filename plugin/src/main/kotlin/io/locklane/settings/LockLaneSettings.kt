@@ -19,6 +19,7 @@ class LockLaneSettings : PersistentStateComponent<LockLaneSettings.State> {
         var timeoutSeconds: Int = 120,
         var resolverSourcePath: String = "",
         var autoScanEnabled: Boolean = false,
+        var vulnCheckOnOpen: Boolean = true,
         var lastManifestPath: String = "",
         var ignoredPackages: MutableList<String> = mutableListOf(),
     )
