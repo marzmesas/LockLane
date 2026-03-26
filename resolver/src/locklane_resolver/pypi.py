@@ -85,3 +85,43 @@ def enumerate_patch_candidates(
 
     candidates.sort(key=lambda t: t[0])
     return [v_str for _, v_str in candidates]
+
+
+def enumerate_upgrade_candidates(
+    package: str, current_version: str, timeout: int = 15
+) -> dict[str, list[str]]:
+    """Return upgrade candidates grouped by bump level: patch, minor, major.
+
+    Each list is sorted ascending. Only stable (non-prerelease) semver versions
+    are included.
+    """
+    current = parse_version(current_version)
+    if current is None:
+        return {"patch": [], "minor": [], "major": []}
+
+    all_versions = fetch_versions(package, timeout=timeout)
+
+    patch: list[tuple[int, str]] = []
+    minor: list[tuple[tuple[int, int], str]] = []
+    major: list[tuple[tuple[int, int, int], str]] = []
+
+    for v_str in all_versions:
+        v = parse_version(v_str)
+        if v is None:
+            continue
+        if v.major == current.major and v.minor == current.minor and v.patch > current.patch:
+            patch.append((v.patch, v_str))
+        elif v.major == current.major and v.minor > current.minor:
+            minor.append(((v.minor, v.patch), v_str))
+        elif v.major > current.major:
+            major.append(((v.major, v.minor, v.patch), v_str))
+
+    patch.sort(key=lambda t: t[0])
+    minor.sort(key=lambda t: t[0])
+    major.sort(key=lambda t: t[0])
+
+    return {
+        "patch": [v for _, v in patch],
+        "minor": [v for _, v in minor],
+        "major": [v for _, v in major],
+    }

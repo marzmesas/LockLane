@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .models import ParsedDependency, ResolverError
-from .pypi import enumerate_patch_candidates, PyPIError
+from .pypi import enumerate_upgrade_candidates, PyPIError
 from .resolver import run_uv_compile, run_pip_compile
 from .simulator import create_modified_manifest, simulate_candidate
 
@@ -75,14 +75,16 @@ def compose_upgrade_plan(
     blocked_updates: list[dict[str, Any]] = []
     inconclusive_updates: list[dict[str, str]] = []
 
-    # 1. For each pinned dependency, find and simulate the highest patch candidate
+    # 1. For each pinned dependency, find the highest upgrade candidate
+    #    Try major first (highest jump), then minor, then patch.
+    #    The first level that resolves safely wins.
     for dep in sorted(dependencies, key=lambda d: d.name.lower()):
         current_version = _extract_pinned_version(dep.specifier)
         if current_version is None:
             continue
 
         try:
-            candidates = enumerate_patch_candidates(dep.name, current_version)
+            candidates_by_level = enumerate_upgrade_candidates(dep.name, current_version)
         except PyPIError:
             inconclusive_updates.append({
                 "package": dep.name,
@@ -91,43 +93,60 @@ def compose_upgrade_plan(
             })
             continue
 
-        if not candidates:
+        # Try from highest bump level down: major -> minor -> patch
+        # Pick the highest version within each level
+        targets = []
+        for level in ("major", "minor", "patch"):
+            level_candidates = candidates_by_level.get(level, [])
+            if level_candidates:
+                targets.append(level_candidates[-1])  # highest in that level
+
+        if not targets:
             continue
 
-        # Pick the highest patch candidate (last in ascending list)
-        target = candidates[-1]
+        best_safe = None
+        last_blocked_entry = None
 
-        sim = simulate_candidate(
-            manifest_path=manifest_path,
-            dependencies=dependencies,
-            package=dep.name,
-            target_version=target,
-            preferred_resolver=resolver,
-            python_path=python_path,
-            timeout=timeout,
-        )
+        for target in targets:
+            sim = simulate_candidate(
+                manifest_path=manifest_path,
+                dependencies=dependencies,
+                package=dep.name,
+                target_version=target,
+                preferred_resolver=resolver,
+                python_path=python_path,
+                timeout=timeout,
+            )
 
-        if sim.result == "SAFE_NOW":
-            safe_updates.append({
-                "package": dep.name,
-                "from_version": current_version,
-                "to_version": target,
-            })
-        elif sim.result == "BLOCKED":
-            entry: dict[str, Any] = {
-                "package": dep.name,
-                "target_version": target,
-                "reason": sim.explanation,
-            }
-            if sim.conflict_chain:
-                entry["conflict_chain"] = sim.conflict_chain.to_dict()
-            blocked_updates.append(entry)
-        else:
-            inconclusive_updates.append({
-                "package": dep.name,
-                "target_version": target,
-                "reason": sim.explanation,
-            })
+            if sim.result == "SAFE_NOW":
+                best_safe = {
+                    "package": dep.name,
+                    "from_version": current_version,
+                    "to_version": target,
+                }
+                break  # Take the highest safe version
+            elif sim.result == "BLOCKED":
+                entry: dict[str, Any] = {
+                    "package": dep.name,
+                    "target_version": target,
+                    "reason": sim.explanation,
+                }
+                if sim.conflict_chain:
+                    entry["conflict_chain"] = sim.conflict_chain.to_dict()
+                last_blocked_entry = entry
+                # Continue trying lower bump levels
+            else:
+                inconclusive_updates.append({
+                    "package": dep.name,
+                    "target_version": target,
+                    "reason": sim.explanation,
+                })
+                break  # Don't keep trying on inconclusive
+
+        if best_safe:
+            safe_updates.append(best_safe)
+        elif last_blocked_entry:
+            blocked_updates.append(last_blocked_entry)
 
     # 2. Compatibility check: if 2+ safe updates, verify they work together
     combined_ok = True
