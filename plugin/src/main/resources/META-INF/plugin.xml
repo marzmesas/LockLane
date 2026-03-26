@@ -33,6 +33,15 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        <h3>0.1.1</h3>
+        <ul>
+            <li>Fix: Python and resolver tools (uv, pip-tools) are now discovered reliably when IDE is launched from macOS Dock/Spotlight</li>
+            <li>Fix: Resolve circular import crash in vulnerability scanner module</li>
+            <li>Fix: Bundled resolver properly re-extracts when any file changes</li>
+            <li>UI: Vulnerability table now supports horizontal scrolling for long summaries</li>
+            <li>Auto-scan on project open is now disabled by default (opt-in via Settings)</li>
+        </ul>
+
         <h3>0.1.0</h3>
         <ul>
             <li>Initial release</li>
