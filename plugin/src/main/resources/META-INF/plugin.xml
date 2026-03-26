@@ -88,6 +88,7 @@
         <notificationGroup id="LockLane" displayType="BALLOON"/>
 
         <postStartupActivity implementation="io.locklane.activity.AutoScanActivity"/>
+        <postStartupActivity implementation="io.locklane.activity.VulnerabilityCheckActivity"/>
 
         <codeInsight.lineMarkerProvider
                 language="TEXT"
