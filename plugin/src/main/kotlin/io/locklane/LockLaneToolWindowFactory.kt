@@ -3,7 +3,6 @@ package io.locklane
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.Separator
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
@@ -15,21 +14,18 @@ import io.locklane.action.RunPlanAction
 import io.locklane.action.SelectManifestAction
 import io.locklane.action.VerifyPlanAction
 import io.locklane.activity.AutoScanActivity
-import io.locklane.activity.VulnerabilityCheckActivity
 import io.locklane.service.LockLaneProjectState
 import io.locklane.settings.LockLaneSettings
-import io.locklane.ui.LockLanePanel
+import io.locklane.ui.ManifestTabManager
 import java.awt.BorderLayout
 import java.io.File
 import java.nio.file.Path
-import javax.swing.JOptionPane
 import javax.swing.JPanel
-import javax.swing.SwingUtilities
 
 class LockLaneToolWindowFactory : ToolWindowFactory {
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-        val panel = LockLanePanel(project)
+        val tabManager = ManifestTabManager(project)
 
         val actionGroup = DefaultActionGroup().apply {
             add(SelectManifestAction())
@@ -44,41 +40,45 @@ class LockLaneToolWindowFactory : ToolWindowFactory {
 
         val toolbar = ActionManager.getInstance()
             .createActionToolbar("LockLaneToolbar", actionGroup, true)
-        toolbar.targetComponent = panel
+        toolbar.targetComponent = tabManager.component
 
         val wrapper = JPanel(BorderLayout()).apply {
+            putClientProperty("ManifestTabManager", tabManager)
             add(toolbar.component, BorderLayout.NORTH)
-            add(panel, BorderLayout.CENTER)
+            add(tabManager.component, BorderLayout.CENTER)
         }
 
         val content = ContentFactory.getInstance().createContent(wrapper, "", false)
         toolWindow.contentManager.addContent(content)
 
         // Try to populate from startup scan cache
-        if (!tryPopulateFromCache(project, panel)) {
-            // No cached scan yet — try persisted manifest from previous session
-            val persisted = LockLaneSettings.getInstance(project).state.lastManifestPath
-            if (persisted.isNotBlank() && Path.of(persisted).toFile().isFile) {
-                panel.setManifest(Path.of(persisted))
+        val projectState = LockLaneProjectState.getInstance(project)
+        if (projectState.manifests.isNotEmpty()) {
+            for ((path, state) in projectState.manifests) {
+                val panel = tabManager.addManifest(path)
+                val plan = state.plan
+                val jsonPath = state.planJson
+                if (plan != null && jsonPath != null) {
+                    panel.showPlan(plan, jsonPath)
+                    state.audit?.let { panel.updateVulnerabilities(it) }
+                    state.enrich?.let { panel.updateLinks(it) }
+                }
+            }
+        } else {
+            // Try persisted manifests from previous session
+            val persisted = LockLaneSettings.getInstance(project).state.lastManifestPaths
+            val validPaths = persisted.filter { Path.of(it).toFile().isFile }
+            if (validPaths.isNotEmpty()) {
+                for (pathStr in validPaths) {
+                    tabManager.addManifest(Path.of(pathStr))
+                }
             } else {
-                autoDetectManifest(project, panel)
+                autoDetectManifests(project, tabManager)
             }
         }
     }
 
-    private fun tryPopulateFromCache(project: Project, panel: LockLanePanel): Boolean {
-        val projectState = LockLaneProjectState.getInstance(project)
-        val plan = projectState.lastPlan ?: return false
-        val jsonPath = projectState.lastPlanJson ?: return false
-        val manifestPath = projectState.manifestPath ?: return false
-        panel.setManifest(manifestPath)
-        panel.showPlan(plan, jsonPath)
-        projectState.lastAudit?.let { panel.updateVulnerabilities(it) }
-        projectState.lastEnrich?.let { panel.updateLinks(it) }
-        return true
-    }
-
-    private fun autoDetectManifest(project: Project, panel: LockLanePanel) {
+    private fun autoDetectManifests(project: Project, tabManager: ManifestTabManager) {
         val basePath = project.basePath ?: return
         val candidates = AutoScanActivity.MANIFEST_NAMES.mapNotNull { name ->
             val file = File(basePath, name)
@@ -86,33 +86,8 @@ class LockLaneToolWindowFactory : ToolWindowFactory {
         }
         if (candidates.isEmpty()) return
 
-        ApplicationManager.getApplication().invokeLater {
-            val manifest = if (candidates.size == 1) {
-                val answer = JOptionPane.showConfirmDialog(
-                    SwingUtilities.getWindowAncestor(panel),
-                    "Found ${candidates.first().name} in the project root. Use it as the manifest?",
-                    "LockLane — Manifest Detected",
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.QUESTION_MESSAGE,
-                )
-                if (answer == JOptionPane.YES_OPTION) candidates.first() else null
-            } else {
-                val options = candidates.map { it.name }.toTypedArray()
-                val choice = JOptionPane.showInputDialog(
-                    SwingUtilities.getWindowAncestor(panel),
-                    "Multiple manifest files found. Choose one:",
-                    "LockLane — Select Manifest",
-                    JOptionPane.QUESTION_MESSAGE,
-                    null,
-                    options,
-                    options.first(),
-                )
-                if (choice != null) candidates.first { it.name == choice } else null
-            }
-
-            if (manifest != null) {
-                panel.setManifest(manifest.toPath())
-            }
+        for (candidate in candidates) {
+            tabManager.addManifest(candidate.toPath())
         }
     }
 

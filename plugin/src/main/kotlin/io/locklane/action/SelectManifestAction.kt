@@ -7,20 +7,22 @@ import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.vfs.LocalFileSystem
 
-class SelectManifestAction : AnAction("Select Manifest", "Choose a dependency manifest file", AllIcons.Actions.MenuOpen) {
+class SelectManifestAction : AnAction("Select Manifest", "Choose dependency manifest files", AllIcons.Actions.MenuOpen) {
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val panel = findLockLanePanel(project) ?: return
+        val tabManager = findManifestTabManager(project) ?: return
 
-        val descriptor = FileChooserDescriptor(true, false, false, false, false, false)
-            .withTitle("Select Dependency Manifest")
-            .withDescription("Choose a requirements.txt, requirements.in, or pyproject.toml file")
+        val descriptor = FileChooserDescriptor(true, false, false, false, false, true)
+            .withTitle("Select Dependency Manifests")
+            .withDescription("Choose requirements.txt, requirements.in, or pyproject.toml files")
             .withFileFilter { it.extension in listOf("txt", "in", "toml") }
 
         val projectDir = project.basePath?.let { LocalFileSystem.getInstance().findFileByPath(it) }
-        val file = FileChooser.chooseFile(descriptor, project, projectDir) ?: return
-        panel.setManifest(file.toNioPath())
+        val files = FileChooser.chooseFiles(descriptor, project, projectDir)
+        for (file in files) {
+            tabManager.addManifest(file.toNioPath())
+        }
     }
 
     override fun update(e: AnActionEvent) {
