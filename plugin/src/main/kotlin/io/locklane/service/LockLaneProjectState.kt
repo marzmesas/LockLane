@@ -10,11 +10,42 @@ import java.nio.file.Path
 @Service(Service.Level.PROJECT)
 class LockLaneProjectState {
 
-    var lastPlan: UpgradePlan? = null
-    var lastPlanJson: Path? = null
-    var manifestPath: Path? = null
-    var lastAudit: AuditResult? = null
-    var lastEnrich: EnrichResult? = null
+    data class ManifestState(
+        var plan: UpgradePlan? = null,
+        var planJson: Path? = null,
+        var audit: AuditResult? = null,
+        var enrich: EnrichResult? = null,
+    )
+
+    val manifests: MutableMap<Path, ManifestState> = mutableMapOf()
+
+    fun getOrCreate(path: Path): ManifestState =
+        manifests.getOrPut(path) { ManifestState() }
+
+    // Convenience accessors for single-manifest backward compat
+    var lastPlan: UpgradePlan?
+        get() = manifests.values.firstOrNull()?.plan
+        set(value) { manifests.values.firstOrNull()?.plan = value }
+
+    var lastPlanJson: Path?
+        get() = manifests.values.firstOrNull()?.planJson
+        set(value) { manifests.values.firstOrNull()?.planJson = value }
+
+    var manifestPath: Path?
+        get() = manifests.keys.firstOrNull()
+        set(value) {
+            if (value != null && value !in manifests) {
+                manifests[value] = ManifestState()
+            }
+        }
+
+    var lastAudit: AuditResult?
+        get() = manifests.values.firstOrNull()?.audit
+        set(value) { manifests.values.firstOrNull()?.audit = value }
+
+    var lastEnrich: EnrichResult?
+        get() = manifests.values.firstOrNull()?.enrich
+        set(value) { manifests.values.firstOrNull()?.enrich = value }
 
     companion object {
         fun getInstance(project: Project): LockLaneProjectState =

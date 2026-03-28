@@ -98,7 +98,9 @@ class LockLanePanel(private val project: Project) : JPanel(BorderLayout()) {
         verifyResultPanel.clear()
         applyResultPanel.clear()
         cardLayout.show(cardPanel, CARD_EMPTY)
-        io.locklane.settings.LockLaneSettings.getInstance(project).state.lastManifestPath = path.toString()
+        val paths = io.locklane.settings.LockLaneSettings.getInstance(project).state.lastManifestPaths
+        val pathStr = path.toString()
+        if (pathStr !in paths) paths.add(pathStr)
     }
 
     fun showBaseline(baseline: BaselineResult) {
