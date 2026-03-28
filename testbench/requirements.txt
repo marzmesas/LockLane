@@ -1,4 +1,4 @@
-# LockLane testbench – mixed outdated pins to exercise batch selection filters
+# LockLane testbench – mixed outdated pins for batch selection and vuln testing
 # Includes major, minor, and patch-level gaps
 
 # Major bumps (e.g. flask 2.x -> 3.x, pydantic 1.x -> 2.x)
@@ -6,13 +6,13 @@ flask==2.2.0
 pydantic==1.10.0
 numpy==1.24.0
 
-# Minor bumps (one minor version behind latest)
+# Minor bumps
 requests==2.31.0
 rich==13.8.0
 uvicorn==0.31.0
 httpx==0.27.0
 
-# Patch bumps (same minor, one or two patches behind)
+# Patch bumps
 click==8.1.3
 packaging==24.1
 python-dotenv==1.0.0
