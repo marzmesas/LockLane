@@ -13,6 +13,9 @@
             <li><b>Conflict detection</b> — shows exactly which transitive dependencies block an upgrade, with full conflict chain details</li>
             <li><b>Vulnerability scanning</b> — checks dependencies against the OSV database for known security issues</li>
             <li><b>Changelog links</b> — quick links to changelogs and project pages from the plan view</li>
+            <li><b>Multi-manifest support</b> — scan requirements.txt, requirements-dev.txt, and pyproject.toml in a tabbed interface</li>
+            <li><b>Batch upgrade selection</b> — one-click All, Patch, Minor + Patch, or None buttons</li>
+            <li><b>Critical vulnerability alerts</b> — notifies on project open when high-severity CVEs are found</li>
             <li><b>Per-package selective apply</b> — choose exactly which updates to apply with checkboxes</li>
             <li><b>Verification</b> — runs your test suite against proposed changes in a disposable venv before touching any files</li>
             <li><b>Apply with dry-run</b> — preview changes before writing, with automatic lock file regeneration</li>
@@ -33,6 +36,16 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        <h3>0.2.0</h3>
+        <ul>
+            <li>Multi-manifest support — scan multiple files (requirements.txt, requirements-dev.txt, pyproject.toml) in a tabbed interface</li>
+            <li>Batch upgrade strategies — one-click "All", "Patch", "Minor + Patch", "None" selection buttons</li>
+            <li>Upgrade planner now tries major, minor, and patch candidates (previously patch-only)</li>
+            <li>Critical vulnerability notifications on project open with plan-on-demand flow</li>
+            <li>Startup scan results are cached — plan is pre-populated when opening LockLane</li>
+            <li>Human-readable Risk column in vulnerability table (Critical/High/Medium/Low with color coding)</li>
+        </ul>
+
         <h3>0.1.1</h3>
         <ul>
             <li>Fix: Python and resolver tools (uv, pip-tools) are now discovered reliably when IDE is launched from macOS Dock/Spotlight</li>
