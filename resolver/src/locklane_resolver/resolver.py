@@ -50,7 +50,11 @@ def _cleanup_workspace(temp_dir: Path) -> None:
     shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-def run_uv_compile(manifest_path: Path, python_path: str | None = None) -> str:
+def run_uv_compile(
+    manifest_path: Path,
+    python_path: str | None = None,
+    exclude_newer: str | None = None,
+) -> str:
     """Run uv pip compile and return the annotated output."""
     cmd = [
         "uv", "pip", "compile",
@@ -60,6 +64,8 @@ def run_uv_compile(manifest_path: Path, python_path: str | None = None) -> str:
     ]
     if python_path:
         cmd.extend(["--python", python_path])
+    if exclude_newer:
+        cmd.extend(["--exclude-newer", exclude_newer])
 
     result = subprocess.run(
         cmd,
@@ -107,6 +113,7 @@ def resolve(
     manifest_path: Path,
     preferred: str = "uv",
     python_path: str | None = None,
+    exclude_newer: str | None = None,
 ) -> tuple[str, str, str]:
     """Resolve dependencies using preferred tool with fallback.
 
@@ -128,7 +135,7 @@ def resolve(
                 continue
             try:
                 if tool_name == "uv":
-                    raw_output = run_uv_compile(temp_manifest, python)
+                    raw_output = run_uv_compile(temp_manifest, python, exclude_newer=exclude_newer)
                 else:
                     raw_output = run_pip_compile(temp_manifest)
                 tool_version = _detect_tool_version(binary)

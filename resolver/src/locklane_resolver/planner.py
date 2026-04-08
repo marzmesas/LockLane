@@ -32,6 +32,7 @@ def _simulate_combined(
     dependencies: list[ParsedDependency],
     resolver: str,
     python_path: str | None,
+    exclude_newer: str | None = None,
 ) -> bool:
     """Resolve manifest with all safe bumps applied simultaneously.
 
@@ -51,7 +52,7 @@ def _simulate_combined(
             if resolver == "pip-tools":
                 run_pip_compile(current)
             else:
-                run_uv_compile(current, python_path)
+                run_uv_compile(current, python_path, exclude_newer=exclude_newer)
             return True
         except (ResolverError, Exception):
             return False
@@ -65,6 +66,7 @@ def compose_upgrade_plan(
     resolver: str,
     python_path: str | None = None,
     timeout: int = 120,
+    exclude_newer: str | None = None,
 ) -> dict[str, Any]:
     """Compose an upgrade plan by enumerating, simulating, and validating candidates.
 
@@ -84,7 +86,9 @@ def compose_upgrade_plan(
             continue
 
         try:
-            candidates_by_level = enumerate_upgrade_candidates(dep.name, current_version)
+            candidates_by_level = enumerate_upgrade_candidates(
+                dep.name, current_version, exclude_newer=exclude_newer,
+            )
         except PyPIError:
             inconclusive_updates.append({
                 "package": dep.name,
@@ -116,6 +120,7 @@ def compose_upgrade_plan(
                 preferred_resolver=resolver,
                 python_path=python_path,
                 timeout=timeout,
+                exclude_newer=exclude_newer,
             )
 
             if sim.result == "SAFE_NOW":
@@ -153,6 +158,7 @@ def compose_upgrade_plan(
     if len(safe_updates) >= 2:
         combined_ok = _simulate_combined(
             manifest_path, safe_updates, dependencies, resolver, python_path,
+            exclude_newer=exclude_newer,
         )
 
     # 3. Build ordered_steps

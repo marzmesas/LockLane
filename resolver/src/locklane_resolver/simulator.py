@@ -291,6 +291,7 @@ def simulate_candidate(
     preferred_resolver: str = "uv",
     python_path: str | None = None,
     timeout: int | None = None,
+    exclude_newer: str | None = None,
 ) -> SimulationResult:
     """Simulate resolution with a bumped version and classify the result.
 
@@ -309,7 +310,7 @@ def simulate_candidate(
             if preferred_resolver == "pip-tools":
                 raw_output = run_pip_compile(modified)
             else:
-                raw_output = run_uv_compile(modified, python_path)
+                raw_output = run_uv_compile(modified, python_path, exclude_newer=exclude_newer)
         except ResolverError as exc:
             chain = parse_conflict_chain(exc.stderr)
             return SimulationResult(
