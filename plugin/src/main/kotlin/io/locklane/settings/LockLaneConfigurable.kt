@@ -68,6 +68,15 @@ class LockLaneConfigurable(private val project: Project) : BoundConfigurable("Lo
             }
         }
 
+        group("Version Filtering") {
+            row("Exclude packages newer than:") {
+                textField()
+                    .bindText(settings.state::excludeNewer)
+                    .comment("Filter out recently uploaded versions (e.g. \"7 days\", \"2026-01-15\"). Also reads [tool.uv].exclude-newer from pyproject.toml.")
+                    .align(AlignX.FILL)
+            }
+        }
+
         group("Scanning") {
             row {
                 checkBox("Auto-scan dependencies on project open")

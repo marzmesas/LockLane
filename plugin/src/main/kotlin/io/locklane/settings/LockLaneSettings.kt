@@ -22,6 +22,7 @@ class LockLaneSettings : PersistentStateComponent<LockLaneSettings.State> {
         var vulnCheckOnOpen: Boolean = true,
         var lastManifestPaths: MutableList<String> = mutableListOf(),
         var ignoredPackages: MutableList<String> = mutableListOf(),
+        var excludeNewer: String = "",
     )
 
     private var myState = State()

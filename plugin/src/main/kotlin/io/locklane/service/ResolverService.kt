@@ -109,6 +109,9 @@ class ResolverService(private val project: Project) {
         if (command in listOf("plan", "verify-plan", "simulate")) {
             cmd += listOf("--timeout", settings.state.timeoutSeconds.toString())
         }
+        if (command in listOf("baseline", "plan", "simulate") && settings.state.excludeNewer.isNotBlank()) {
+            cmd += listOf("--exclude-newer", settings.state.excludeNewer)
+        }
 
         cmd += extraArgs
 
