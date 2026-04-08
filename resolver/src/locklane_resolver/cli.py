@@ -34,6 +34,24 @@ from .pyproject_parser import parse_pyproject_dependencies
 SUPPORTED_RESOLVERS = {"uv": "uv", "pip-tools": "pip-compile"}
 
 
+def _read_exclude_newer_from_toml(manifest: Path) -> str | None:
+    """Read [tool.uv].exclude-newer from a pyproject.toml file."""
+    if manifest.suffix != ".toml":
+        return None
+    try:
+        import tomllib
+    except ModuleNotFoundError:
+        try:
+            import tomli as tomllib  # type: ignore[no-redef]
+        except ModuleNotFoundError:
+            return None
+    try:
+        data = tomllib.loads(manifest.read_text(encoding="utf-8"))
+        return data.get("tool", {}).get("uv", {}).get("exclude-newer")
+    except Exception:
+        return None
+
+
 def parse_requirements(manifest_path: Path) -> list[ParsedDependency]:
     """Parse basic dependency spec lines from a requirements-style file."""
     dependencies: list[ParsedDependency] = []
@@ -110,6 +128,7 @@ def baseline(
     python_path: str | None = None,
     no_cache: bool = False,
     no_resolve: bool = False,
+    exclude_newer: str | None = None,
 ) -> dict[str, Any]:
     """Produce baseline parse, resolution graph, and tooling metadata."""
     dependencies = parse_manifest(manifest)
@@ -143,7 +162,11 @@ def baseline(
     # Run resolver
     try:
         direct_names = {dep.name for dep in dependencies}
-        raw_output, tool_name, tool_version = resolve(manifest, preferred=resolver, python_path=python_path)
+        effective_en = exclude_newer or _read_exclude_newer_from_toml(manifest)
+        raw_output, tool_name, tool_version = resolve(
+            manifest, preferred=resolver, python_path=python_path,
+            exclude_newer=effective_en,
+        )
 
         py_version = _detect_python_version(python_path or sys.executable)
 
@@ -262,9 +285,13 @@ def plan(
     *,
     python_path: str | None = None,
     timeout: int = 120,
+    exclude_newer: str | None = None,
 ) -> dict[str, Any]:
     """Compose a full upgrade plan for all pinned dependencies."""
     dependencies = parse_manifest(manifest)
+
+    # CLI flag takes precedence, then read from pyproject.toml
+    effective_exclude_newer = exclude_newer or _read_exclude_newer_from_toml(manifest)
 
     try:
         plan_data = compose_upgrade_plan(
@@ -273,6 +300,7 @@ def plan(
             resolver=resolver,
             python_path=python_path,
             timeout=timeout,
+            exclude_newer=effective_exclude_newer,
         )
         status = "ok"
     except Exception as exc:
@@ -424,6 +452,7 @@ def build_parser() -> argparse.ArgumentParser:
     baseline_parser.add_argument("--python", type=str, default=None, help="Path to Python interpreter for resolution")
     baseline_parser.add_argument("--no-cache", action="store_true", help="Skip cache lookup and storage")
     baseline_parser.add_argument("--no-resolve", action="store_true", help="Parse-only mode — skip resolver invocation")
+    baseline_parser.add_argument("--exclude-newer", type=str, default=None, help="Exclude packages uploaded after this date/duration")
 
     simulate_parser = subparsers.add_parser("simulate", help="Simulate one candidate update")
     add_common(simulate_parser)
@@ -431,6 +460,7 @@ def build_parser() -> argparse.ArgumentParser:
     simulate_parser.add_argument("--target-version", required=True, help="Candidate target version")
     simulate_parser.add_argument("--python", type=str, default=None, help="Path to Python interpreter for resolution")
     simulate_parser.add_argument("--timeout", type=int, default=120, help="Resolution timeout in seconds")
+    simulate_parser.add_argument("--exclude-newer", type=str, default=None, help="Exclude packages uploaded after this date/duration")
 
     verify_parser = subparsers.add_parser("verify", help="Run verification command")
     add_common(verify_parser)
@@ -445,6 +475,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_common(plan_parser)
     plan_parser.add_argument("--python", type=str, default=None, help="Path to Python interpreter for resolution")
     plan_parser.add_argument("--timeout", type=int, default=120, help="Resolution timeout in seconds")
+    plan_parser.add_argument("--exclude-newer", type=str, default=None, help="Exclude packages uploaded after this date/duration (e.g. '7 days', '2026-01-15')")
 
     vp_parser = subparsers.add_parser("verify-plan", help="Verify an upgrade plan in a disposable venv")
     add_common(vp_parser)
@@ -485,6 +516,7 @@ def main(argv: list[str] | None = None) -> int:
             python_path=args.python,
             no_cache=args.no_cache,
             no_resolve=args.no_resolve,
+            exclude_newer=args.exclude_newer,
         )
     elif args.command == "simulate":
         payload = simulate(
@@ -501,6 +533,7 @@ def main(argv: list[str] | None = None) -> int:
             args.resolver,
             python_path=args.python,
             timeout=args.timeout,
+            exclude_newer=args.exclude_newer,
         )
     elif args.command == "verify-plan":
         if not args.plan_json.exists():
