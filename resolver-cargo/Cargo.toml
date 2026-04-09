@@ -1,0 +1,27 @@
+[package]
+name = "locklane-cargo"
+version = "0.1.0"
+edition = "2021"
+description = "LockLane Cargo.toml dependency resolver backend"
+
+[[bin]]
+name = "locklane-cargo"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+toml_edit = "0.22"
+toml = "0.8"
+semver = { version = "1", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = { version = "3", features = ["json"] }
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+tempfile = "3"
+regex = "1"
+
+[profile.release]
+strip = true
+lto = true
+opt-level = "s"
