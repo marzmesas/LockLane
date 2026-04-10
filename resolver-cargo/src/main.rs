@@ -1,6 +1,8 @@
 mod cargo_parser;
 mod cargo_resolver;
+mod crates_io;
 mod models;
+mod osv;
 
 use std::path::PathBuf;
 
@@ -177,6 +179,64 @@ fn cmd_baseline(manifest: &PathBuf, json_out: Option<&PathBuf>) {
     write_json(&resp, json_out);
 }
 
+fn cmd_audit(manifest: &PathBuf, json_out: Option<&PathBuf>) {
+    let manifest_path = manifest.canonicalize().unwrap_or_else(|_| manifest.clone());
+    let resp = osv::audit_manifest(&manifest_path);
+    write_json(&resp, json_out);
+}
+
+fn cmd_enrich(manifest: &PathBuf, json_out: Option<&PathBuf>) {
+    let manifest_path = manifest.canonicalize().unwrap_or_else(|_| manifest.clone());
+
+    let deps = match cargo_parser::parse_cargo_toml(&manifest_path) {
+        Ok(d) => d,
+        Err(e) => {
+            let resp = EnrichResponse {
+                schema_version: SCHEMA_VERSION.into(),
+                timestamp_utc: now_utc_iso(),
+                status: "error".into(),
+                manifest_path: manifest_path.display().to_string(),
+                packages: std::collections::HashMap::new(),
+            };
+            write_json(&resp, json_out);
+            return;
+        }
+    };
+
+    let mut packages = std::collections::HashMap::new();
+    for dep in &deps {
+        match crates_io::fetch_crate_metadata(&dep.name) {
+            Ok(meta) => {
+                packages.insert(
+                    dep.name.clone(),
+                    PackageLinks {
+                        changelog_url: meta.get("changelog_url").and_then(|v| v.clone()),
+                        home_page: meta.get("home_page").and_then(|v| v.clone()),
+                    },
+                );
+            }
+            Err(_) => {
+                packages.insert(
+                    dep.name.clone(),
+                    PackageLinks {
+                        changelog_url: None,
+                        home_page: None,
+                    },
+                );
+            }
+        }
+    }
+
+    let resp = EnrichResponse {
+        schema_version: SCHEMA_VERSION.into(),
+        timestamp_utc: now_utc_iso(),
+        status: "ok".into(),
+        manifest_path: manifest_path.display().to_string(),
+        packages,
+    };
+    write_json(&resp, json_out);
+}
+
 fn cmd_stub(command: &str, manifest: &PathBuf, json_out: Option<&PathBuf>) {
     let resp = serde_json::json!({
         "schema_version": SCHEMA_VERSION,
@@ -204,10 +264,10 @@ fn main() {
         } => cmd_stub("simulate", manifest, json_out.as_ref()),
         Commands::Audit {
             manifest, json_out, ..
-        } => cmd_stub("audit", manifest, json_out.as_ref()),
+        } => cmd_audit(manifest, json_out.as_ref()),
         Commands::Enrich {
             manifest, json_out, ..
-        } => cmd_stub("enrich", manifest, json_out.as_ref()),
+        } => cmd_enrich(manifest, json_out.as_ref()),
         Commands::Apply {
             manifest, json_out, ..
         } => cmd_stub("apply", manifest, json_out.as_ref()),
