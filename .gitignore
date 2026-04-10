@@ -17,3 +17,7 @@ out/
 
 # Logs
 *.log
+
+# Testbenches (local testing only)
+testbench-python/
+testbench-rust/
