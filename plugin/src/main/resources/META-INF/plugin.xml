@@ -4,7 +4,7 @@
     <vendor email="mmesasro@gmail.com" url="https://github.com/marzmesas">LockLane</vendor>
 
     <description><![CDATA[
-        <p>LockLane plans safe Python dependency upgrades with conflict-aware guidance. Supports <code>requirements.txt</code>, <code>requirements.in</code>, and <code>pyproject.toml</code> (PEP 621 and Poetry).</p>
+        <p>LockLane plans safe dependency upgrades with conflict-aware guidance. Supports Python (<code>requirements.txt</code>, <code>requirements.in</code>, <code>pyproject.toml</code>) and Rust (<code>Cargo.toml</code>).</p>
 
         <h3>Features</h3>
         <ul>
@@ -95,6 +95,7 @@
                 nonDefaultProject="true"/>
         <projectService serviceImplementation="io.locklane.settings.LockLaneSettings"/>
         <projectService serviceImplementation="io.locklane.service.ResolverService"/>
+        <projectService serviceImplementation="io.locklane.service.CargoResolverService"/>
         <projectService serviceImplementation="io.locklane.service.LockLaneProjectState"/>
         <projectService serviceImplementation="io.locklane.service.RollbackHistoryService"/>
 

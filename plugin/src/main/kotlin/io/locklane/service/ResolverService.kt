@@ -26,23 +26,35 @@ class ResolverService(private val project: Project) {
 
     private val processRunner = ProcessRunner()
 
+    // --- Routing: delegates to CargoResolverService for Cargo.toml manifests ---
+
+    private fun isCargoManifest(manifest: Path): Boolean =
+        manifest.fileName?.toString() == "Cargo.toml"
+
+    private fun cargoService(): CargoResolverService =
+        CargoResolverService.getInstance(project)
+
     fun runBaseline(manifest: Path, indicator: ProgressIndicator? = null): BaselineResult {
+        if (isCargoManifest(manifest)) return cargoService().runBaseline(manifest, indicator)
         val result = executeResolver("baseline", manifest, indicator = indicator)
         return objectMapper.readValue(result.stdout, BaselineResult::class.java)
     }
 
     fun runPlan(manifest: Path, indicator: ProgressIndicator? = null): UpgradePlan {
+        if (isCargoManifest(manifest)) return cargoService().runPlan(manifest, indicator)
         val result = executeResolver("plan", manifest, indicator = indicator)
         return objectMapper.readValue(result.stdout, UpgradePlan::class.java)
     }
 
     fun runPlanRaw(manifest: Path, indicator: ProgressIndicator? = null): Pair<UpgradePlan, String> {
+        if (isCargoManifest(manifest)) return cargoService().runPlanRaw(manifest, indicator)
         val result = executeResolver("plan", manifest, indicator = indicator)
         val plan = objectMapper.readValue(result.stdout, UpgradePlan::class.java)
         return Pair(plan, result.stdout)
     }
 
     fun runVerifyPlan(manifest: Path, planJson: Path, indicator: ProgressIndicator? = null): VerificationReport {
+        if (isCargoManifest(manifest)) return cargoService().runVerifyPlan(manifest, planJson, indicator)
         val extraArgs = listOf("--plan-json", planJson.toString())
         val settings = LockLaneSettings.getInstance(project)
         val args = extraArgs.toMutableList()
@@ -60,6 +72,7 @@ class ResolverService(private val project: Project) {
         dryRun: Boolean = false,
         indicator: ProgressIndicator? = null,
     ): ApplyResult {
+        if (isCargoManifest(manifest)) return cargoService().runApply(manifest, planJson, output, dryRun, indicator)
         val args = mutableListOf("--plan-json", planJson.toString())
         if (output != null) {
             args += listOf("--output", output.toString())
@@ -72,11 +85,13 @@ class ResolverService(private val project: Project) {
     }
 
     fun runAudit(manifest: Path, indicator: ProgressIndicator? = null): AuditResult {
+        if (isCargoManifest(manifest)) return cargoService().runAudit(manifest, indicator)
         val result = executeResolver("audit", manifest, indicator = indicator)
         return objectMapper.readValue(result.stdout, AuditResult::class.java)
     }
 
     fun runEnrich(manifest: Path, indicator: ProgressIndicator? = null): EnrichResult {
+        if (isCargoManifest(manifest)) return cargoService().runEnrich(manifest, indicator)
         val result = executeResolver("enrich", manifest, indicator = indicator)
         return objectMapper.readValue(result.stdout, EnrichResult::class.java)
     }
