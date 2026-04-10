@@ -3,8 +3,10 @@ mod cargo_resolver;
 mod crates_io;
 mod models;
 mod osv;
+mod applier;
 mod planner;
 mod simulator;
+mod verifier;
 
 use std::path::PathBuf;
 
@@ -275,6 +277,97 @@ fn cmd_enrich(manifest: &PathBuf, json_out: Option<&PathBuf>) {
     write_json(&resp, json_out);
 }
 
+fn cmd_apply(
+    manifest: &PathBuf,
+    plan_json: &PathBuf,
+    output: Option<&PathBuf>,
+    dry_run: bool,
+    json_out: Option<&PathBuf>,
+) {
+    let manifest_path = manifest.canonicalize().unwrap_or_else(|_| manifest.clone());
+
+    let plan_data: serde_json::Value = match std::fs::read_to_string(plan_json)
+        .map_err(|e| e.to_string())
+        .and_then(|s| serde_json::from_str(&s).map_err(|e| e.to_string()))
+    {
+        Ok(d) => d,
+        Err(e) => {
+            let resp = ApplyResponse {
+                schema_version: SCHEMA_VERSION.into(),
+                timestamp_utc: now_utc_iso(),
+                status: "error".into(),
+                manifest_path: manifest_path.display().to_string(),
+                plan_path: plan_json.display().to_string(),
+                dry_run,
+                apply: None,
+            };
+            write_json(&resp, json_out);
+            return;
+        }
+    };
+
+    match applier::apply_plan(&manifest_path, &plan_data, output.map(|p| p.as_path()), dry_run) {
+        Ok(data) => {
+            let resp = ApplyResponse {
+                schema_version: SCHEMA_VERSION.into(),
+                timestamp_utc: now_utc_iso(),
+                status: "ok".into(),
+                manifest_path: manifest_path.display().to_string(),
+                plan_path: plan_json.display().to_string(),
+                dry_run,
+                apply: Some(data),
+            };
+            write_json(&resp, json_out);
+        }
+        Err(e) => {
+            let resp = ApplyResponse {
+                schema_version: SCHEMA_VERSION.into(),
+                timestamp_utc: now_utc_iso(),
+                status: "error".into(),
+                manifest_path: manifest_path.display().to_string(),
+                plan_path: plan_json.display().to_string(),
+                dry_run,
+                apply: None,
+            };
+            write_json(&resp, json_out);
+        }
+    }
+}
+
+fn cmd_verify_plan(
+    manifest: &PathBuf,
+    plan_json: &PathBuf,
+    command: Option<&str>,
+    json_out: Option<&PathBuf>,
+) {
+    let manifest_path = manifest.canonicalize().unwrap_or_else(|_| manifest.clone());
+
+    let plan_data: serde_json::Value = match std::fs::read_to_string(plan_json)
+        .map_err(|e| e.to_string())
+        .and_then(|s| serde_json::from_str(&s).map_err(|e| e.to_string()))
+    {
+        Ok(d) => d,
+        Err(e) => {
+            let resp = VerifyResponse {
+                schema_version: SCHEMA_VERSION.into(),
+                timestamp_utc: now_utc_iso(),
+                status: "error".into(),
+                manifest_path: manifest_path.display().to_string(),
+                plan_path: plan_json.display().to_string(),
+                resolver: "cargo".into(),
+                verification: None,
+            };
+            write_json(&resp, json_out);
+            return;
+        }
+    };
+
+    let mut resp = verifier::verify_plan(&manifest_path, &plan_data, command);
+    resp.plan_path = plan_json.display().to_string();
+    write_json(&resp, json_out);
+}
+
+#[allow(dead_code)]
 fn cmd_stub(command: &str, manifest: &PathBuf, json_out: Option<&PathBuf>) {
     let resp = serde_json::json!({
         "schema_version": SCHEMA_VERSION,
@@ -314,10 +407,19 @@ fn main() {
             manifest, json_out, ..
         } => cmd_enrich(manifest, json_out.as_ref()),
         Commands::Apply {
-            manifest, json_out, ..
-        } => cmd_stub("apply", manifest, json_out.as_ref()),
+            manifest,
+            json_out,
+            plan_json,
+            output,
+            dry_run,
+            ..
+        } => cmd_apply(manifest, plan_json, output.as_ref(), *dry_run, json_out.as_ref()),
         Commands::VerifyPlan {
-            manifest, json_out, ..
-        } => cmd_stub("verify-plan", manifest, json_out.as_ref()),
+            manifest,
+            json_out,
+            plan_json,
+            command,
+            ..
+        } => cmd_verify_plan(manifest, plan_json, command.as_deref(), json_out.as_ref()),
     }
 }
