@@ -92,6 +92,7 @@ class AutoScanActivity : ProjectActivity {
             "requirements-dev.in",
             "requirements-dev.txt",
             "pyproject.toml",
+            "Cargo.toml",
         )
     }
 }

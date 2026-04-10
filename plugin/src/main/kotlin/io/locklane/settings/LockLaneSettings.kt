@@ -23,6 +23,7 @@ class LockLaneSettings : PersistentStateComponent<LockLaneSettings.State> {
         var lastManifestPaths: MutableList<String> = mutableListOf(),
         var ignoredPackages: MutableList<String> = mutableListOf(),
         var excludeNewer: String = "",
+        var cargoResolverPath: String = "",
     )
 
     private var myState = State()

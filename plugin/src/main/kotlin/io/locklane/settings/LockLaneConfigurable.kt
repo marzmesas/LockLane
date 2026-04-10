@@ -77,6 +77,15 @@ class LockLaneConfigurable(private val project: Project) : BoundConfigurable("Lo
             }
         }
 
+        group("Cargo (Rust)") {
+            row("Cargo resolver binary:") {
+                textField()
+                    .bindText(settings.state::cargoResolverPath)
+                    .comment("Override the bundled locklane-cargo binary. Leave empty to use bundled or dev build.")
+                    .align(AlignX.FILL)
+            }
+        }
+
         group("Scanning") {
             row {
                 checkBox("Auto-scan dependencies on project open")
@@ -140,7 +149,22 @@ class LockLaneConfigurable(private val project: Project) : BoundConfigurable("Lo
         }
 
         if (uvPath == null && pipCompilePath == null) {
-            messages += "\u26a0 No resolver tool available — install uv or pip-tools"
+            messages += "\u26a0 No Python resolver tool available — install uv or pip-tools"
+        }
+
+        // Check Cargo
+        val cargoPath = PythonDiscovery.findOnPath("cargo")
+        if (cargoPath != null) {
+            messages += "\u2714 cargo: $cargoPath"
+        } else {
+            messages += "\u2718 cargo not found on PATH"
+        }
+
+        val cargoBinary = io.locklane.service.CargoResolverBundleExtractor.extractBinary(project.basePath)
+        if (cargoBinary != null) {
+            messages += "\u2714 locklane-cargo: $cargoBinary"
+        } else {
+            messages += "\u2718 locklane-cargo binary not found"
         }
 
         validationLabel.text = "<html>${messages.joinToString("<br>")}</html>"

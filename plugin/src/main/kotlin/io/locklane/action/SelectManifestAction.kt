@@ -15,7 +15,7 @@ class SelectManifestAction : AnAction("Select Manifest", "Choose dependency mani
 
         val descriptor = FileChooserDescriptor(true, false, false, false, false, true)
             .withTitle("Select Dependency Manifests")
-            .withDescription("Choose requirements.txt, requirements.in, or pyproject.toml files")
+            .withDescription("Choose dependency manifests (requirements.txt, pyproject.toml, Cargo.toml)")
             .withFileFilter { it.extension in listOf("txt", "in", "toml") }
 
         val projectDir = project.basePath?.let { LocalFileSystem.getInstance().findFileByPath(it) }
