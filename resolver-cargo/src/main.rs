@@ -3,6 +3,8 @@ mod cargo_resolver;
 mod crates_io;
 mod models;
 mod osv;
+mod planner;
+mod simulator;
 
 use std::path::PathBuf;
 
@@ -179,6 +181,42 @@ fn cmd_baseline(manifest: &PathBuf, json_out: Option<&PathBuf>) {
     write_json(&resp, json_out);
 }
 
+fn cmd_plan(manifest: &PathBuf, exclude_newer: Option<&str>, json_out: Option<&PathBuf>) {
+    let manifest_path = manifest.canonicalize().unwrap_or_else(|_| manifest.clone());
+    let resp = planner::compose_upgrade_plan(&manifest_path, exclude_newer);
+    write_json(&resp, json_out);
+}
+
+fn cmd_simulate(
+    manifest: &PathBuf,
+    package: &str,
+    target_version: &str,
+    json_out: Option<&PathBuf>,
+) {
+    let manifest_path = manifest.canonicalize().unwrap_or_else(|_| manifest.clone());
+    let sim = simulator::simulate_candidate(&manifest_path, package, target_version);
+
+    let resp = SimulateResponse {
+        schema_version: SCHEMA_VERSION.into(),
+        timestamp_utc: now_utc_iso(),
+        resolver: "cargo".into(),
+        status: "ok".into(),
+        manifest_path: manifest_path.display().to_string(),
+        candidate: SimulateCandidate {
+            package: package.into(),
+            target_version: target_version.into(),
+        },
+        result: sim.classification.into(),
+        explanation: sim.explanation,
+        conflict_chain: sim.conflict_chain,
+        raw_logs: Some(RawLogs {
+            stdout: sim.stdout,
+            stderr: sim.stderr,
+        }),
+    };
+    write_json(&resp, json_out);
+}
+
 fn cmd_audit(manifest: &PathBuf, json_out: Option<&PathBuf>) {
     let manifest_path = manifest.canonicalize().unwrap_or_else(|_| manifest.clone());
     let resp = osv::audit_manifest(&manifest_path);
@@ -257,11 +295,18 @@ fn main() {
             manifest, json_out, ..
         } => cmd_baseline(manifest, json_out.as_ref()),
         Commands::Plan {
-            manifest, json_out, ..
-        } => cmd_stub("plan", manifest, json_out.as_ref()),
+            manifest,
+            json_out,
+            exclude_newer,
+            ..
+        } => cmd_plan(manifest, exclude_newer.as_deref(), json_out.as_ref()),
         Commands::Simulate {
-            manifest, json_out, ..
-        } => cmd_stub("simulate", manifest, json_out.as_ref()),
+            manifest,
+            json_out,
+            package,
+            target_version,
+            ..
+        } => cmd_simulate(manifest, package, target_version, json_out.as_ref()),
         Commands::Audit {
             manifest, json_out, ..
         } => cmd_audit(manifest, json_out.as_ref()),
