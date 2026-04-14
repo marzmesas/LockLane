@@ -21,13 +21,13 @@ class DependencyLineMarkerProvider : LineMarkerProvider {
         if (!isManifestFile(file)) return null
 
         val project = element.project
-        val state = LockLaneProjectState.getInstance(project)
-        val plan = state.lastPlan ?: return null
-        val manifestPath = state.manifestPath ?: return null
+        val projectState = LockLaneProjectState.getInstance(project)
 
-        // Check this file matches the scanned manifest
+        // Find the plan for this specific manifest file
         val vFile = file.virtualFile ?: return null
-        if (vFile.path != manifestPath.toString()) return null
+        val filePath = java.nio.file.Path.of(vFile.path)
+        val manifestState = projectState.manifests[filePath] ?: return null
+        val plan = manifestState.plan ?: return null
 
         val document = element.containingFile?.viewProvider?.document ?: return null
         val lineNumber = document.getLineNumber(element.textRange.startOffset)
@@ -69,7 +69,7 @@ class DependencyLineMarkerProvider : LineMarkerProvider {
 
     private fun isManifestFile(file: PsiFile): Boolean {
         val name = file.name
-        return name.endsWith(".txt") || name.endsWith(".in") || name == "pyproject.toml"
+        return name.endsWith(".txt") || name.endsWith(".in") || name == "pyproject.toml" || name == "Cargo.toml"
     }
 
     private fun findSafeUpdate(lineText: String, updates: List<SafeUpdate>): SafeUpdate? {
@@ -79,6 +79,8 @@ class DependencyLineMarkerProvider : LineMarkerProvider {
     private fun matchesLine(lineText: String, packageName: String): Boolean {
         val lower = lineText.lowercase()
         val pkgLower = packageName.lowercase()
+        // Cargo uses hyphens in Cargo.toml but underscores in crate names interchangeably
+        val pkgAlt = pkgLower.replace('-', '_')
 
         // requirements.txt style: "package==1.0.0" or "package>=1.0"
         for (op in listOf("==", ">=", "<=", "~=", "!=", ">", "<")) {
@@ -92,8 +94,8 @@ class DependencyLineMarkerProvider : LineMarkerProvider {
             return true
         }
 
-        // pyproject.toml Poetry style: 'package = "^1.0"'
-        val keyMatch = Regex("""^['"]?${Regex.escape(pkgLower)}['"]?\s*=""", RegexOption.IGNORE_CASE)
+        // Cargo.toml / pyproject.toml Poetry style: 'package = "1.0"' or 'package = { version = "1.0" }'
+        val keyMatch = Regex("""^['"]?(?:${Regex.escape(pkgLower)}|${Regex.escape(pkgAlt)})['"]?\s*=""", RegexOption.IGNORE_CASE)
         if (keyMatch.containsMatchIn(lower)) {
             return true
         }
