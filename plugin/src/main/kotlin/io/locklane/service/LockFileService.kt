@@ -34,6 +34,16 @@ object LockFileService {
             return detectPyprojectLockTool(manifestPath, parent)
         }
 
+        // Cargo.toml -> Cargo.lock
+        if (name == "Cargo.toml") {
+            val lockPath = parent.resolve("Cargo.lock")
+            return LockFileInfo(
+                lockPath,
+                listOf("cargo", "generate-lockfile", "--manifest-path", manifestPath.toString()),
+                "cargo",
+            )
+        }
+
         return null
     }
 
