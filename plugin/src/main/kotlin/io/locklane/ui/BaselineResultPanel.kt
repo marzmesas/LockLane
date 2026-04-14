@@ -29,10 +29,21 @@ class BaselineResultPanel : JPanel() {
     private val scroll = JBScrollPane(depTable)
     private val mainSection = section(separator, scroll)
 
+    private val graphTree = com.intellij.ui.treeStructure.Tree().apply {
+        isRootVisible = true
+        cellRenderer = DependencyTreeCellRenderer()
+        model = javax.swing.tree.DefaultTreeModel(javax.swing.tree.DefaultMutableTreeNode(""))
+    }
+    private val graphSeparator = TitledSeparator("Dependency Graph")
+    private val graphScroll = JBScrollPane(graphTree)
+    private val graphSection = section(graphSeparator, graphScroll)
+
     init {
         layout = BoxLayout(this, BoxLayout.Y_AXIS)
         add(mainSection)
+        add(graphSection)
         mainSection.isVisible = false
+        graphSection.isVisible = false
     }
 
     fun update(baseline: BaselineResult) {
@@ -42,6 +53,20 @@ class BaselineResultPanel : JPanel() {
         mainSection.isVisible = baseline.dependencies.isNotEmpty()
         autoSizeColumns(depTable)
         sizeToContent(scroll, depTable, maxRows = 25)
+
+        // Build dependency graph tree
+        val packages = baseline.resolution?.packages ?: emptyList()
+        if (packages.isNotEmpty()) {
+            graphTree.model = DependencyTreeBuilder.buildResolutionTree(packages)
+            graphSeparator.text = "Dependency Graph (${packages.size} packages)"
+            graphSection.isVisible = true
+            graphScroll.minimumSize = Dimension(0, 40)
+            graphScroll.preferredSize = Dimension(100, 300)
+            graphScroll.maximumSize = Dimension(Int.MAX_VALUE, 300)
+        } else {
+            graphSection.isVisible = false
+        }
+
         revalidate()
         repaint()
     }
@@ -50,6 +75,8 @@ class BaselineResultPanel : JPanel() {
         depModel.update(emptyList(), emptyMap())
         separator.text = "Current Dependencies"
         mainSection.isVisible = false
+        graphSection.isVisible = false
+        graphTree.model = javax.swing.tree.DefaultTreeModel(javax.swing.tree.DefaultMutableTreeNode(""))
         revalidate()
         repaint()
     }

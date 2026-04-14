@@ -3,6 +3,7 @@ package io.locklane.service
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
 import io.locklane.model.AuditResult
+import io.locklane.model.BaselineResult
 import io.locklane.model.EnrichResult
 import io.locklane.model.UpgradePlan
 import java.nio.file.Path
@@ -15,6 +16,7 @@ class LockLaneProjectState {
         var planJson: Path? = null,
         var audit: AuditResult? = null,
         var enrich: EnrichResult? = null,
+        var baseline: BaselineResult? = null,
     )
 
     val manifests: MutableMap<Path, ManifestState> = mutableMapOf()

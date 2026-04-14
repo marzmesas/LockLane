@@ -45,11 +45,10 @@ class PlanResultPanel : JPanel() {
         font = Font(Font.MONOSPACED, Font.PLAIN, 12)
     }
 
-    private val chainDetailArea = JTextArea().apply {
-        isEditable = false
-        lineWrap = true
-        wrapStyleWord = true
-        font = Font(Font.MONOSPACED, Font.PLAIN, 12)
+    private val conflictChainTree = com.intellij.ui.treeStructure.Tree().apply {
+        isRootVisible = true
+        cellRenderer = DependencyTreeCellRenderer()
+        model = javax.swing.tree.DefaultTreeModel(javax.swing.tree.DefaultMutableTreeNode("Select a blocked package"))
     }
 
     private val safeTable = JBTable(safeModel).apply {
@@ -118,7 +117,7 @@ class PlanResultPanel : JPanel() {
 
     private val safeScroll = JBScrollPane(safeTable)
     private val blockedScroll = JBScrollPane(blockedTable)
-    private val chainScroll = JBScrollPane(chainDetailArea)
+    private val chainScroll = JBScrollPane(conflictChainTree)
     private val inconclusiveScroll = JBScrollPane(inconclusiveTable)
     private val vulnScroll = JBScrollPane(vulnTable)
     private val stepsScroll = JBScrollPane(stepsArea)
@@ -137,21 +136,25 @@ class PlanResultPanel : JPanel() {
             if (e.valueIsAdjusting) return@addListSelectionListener
             val row = blockedTable.selectedRow
             if (row < 0 || row >= blockedModel.data.size) {
-                chainDetailArea.text = ""
+                conflictChainTree.model = javax.swing.tree.DefaultTreeModel(
+                    javax.swing.tree.DefaultMutableTreeNode("Select a blocked package")
+                )
                 return@addListSelectionListener
             }
-            val chain = blockedModel.data[row].conflictChain
+            val blocked = blockedModel.data[row]
+            val chain = blocked.conflictChain
             if (chain == null) {
-                chainDetailArea.text = "(no conflict chain data)"
+                conflictChainTree.model = javax.swing.tree.DefaultTreeModel(
+                    javax.swing.tree.DefaultMutableTreeNode("(no conflict chain data)")
+                )
             } else {
-                val sb = StringBuilder()
-                sb.appendLine("Summary: ${chain.summary}")
-                chain.links.forEachIndexed { i, link ->
-                    sb.appendLine("  ${i + 1}. ${link.packageName} (${link.constraint}) required by ${link.requiredBy}")
+                conflictChainTree.model = DependencyTreeBuilder.buildConflictChainTree(
+                    blocked.packageName, blocked.targetVersion, chain
+                )
+                for (i in 0 until conflictChainTree.rowCount) {
+                    conflictChainTree.expandRow(i)
                 }
-                chainDetailArea.text = sb.toString()
             }
-            chainDetailArea.caretPosition = 0
         }
 
         add(vulnSection)
@@ -234,7 +237,9 @@ class PlanResultPanel : JPanel() {
         blockedSeparator.text = "Blocked Updates"
         inconclusiveSeparator.text = "Inconclusive Updates"
         vulnSeparator.text = "Vulnerabilities"
-        chainDetailArea.text = ""
+        conflictChainTree.model = javax.swing.tree.DefaultTreeModel(
+            javax.swing.tree.DefaultMutableTreeNode("")
+        )
         stepsArea.text = ""
         safeSection.isVisible = false
         blockedSection.isVisible = false
