@@ -104,6 +104,11 @@
         <postStartupActivity implementation="io.locklane.activity.AutoScanActivity"/>
         <postStartupActivity implementation="io.locklane.activity.VulnerabilityCheckActivity"/>
 
+        <statusBarWidgetFactory
+                id="LockLaneStatusBar"
+                implementation="io.locklane.ui.LockLaneStatusBarWidgetFactory"
+                order="after encodingWidget"/>
+
         <codeInsight.lineMarkerProvider
                 language="TEXT"
                 implementationClass="io.locklane.editor.DependencyLineMarkerProvider"/>

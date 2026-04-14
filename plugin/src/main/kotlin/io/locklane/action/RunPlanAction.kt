@@ -6,6 +6,7 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
+import io.locklane.service.LockLaneStateListener
 import io.locklane.service.ResolverService
 import io.locklane.settings.LockLaneSettings
 import java.nio.file.Files
@@ -42,6 +43,7 @@ class RunPlanAction : AnAction("Run Plan", "Generate an upgrade plan", AllIcons.
                 com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
                     panel.setBusy(false)
                     panel.showPlan(filteredPlan, tempFile)
+                    project.messageBus.syncPublisher(LockLaneStateListener.TOPIC).stateChanged()
                 }
                 // Run audit and enrich in background after plan
                 runAuditAndEnrich(project, manifest, panel)
@@ -72,6 +74,7 @@ class RunPlanAction : AnAction("Run Plan", "Generate an upgrade plan", AllIcons.
                     val audit = service.runAudit(manifest, indicator)
                     com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
                         panel.updateVulnerabilities(audit)
+                        project.messageBus.syncPublisher(LockLaneStateListener.TOPIC).stateChanged()
                     }
                 } catch (e: Exception) {
                     log.info("Vulnerability audit failed: ${e.message}")
