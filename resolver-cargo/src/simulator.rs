@@ -211,6 +211,16 @@ fn version_in_metadata(stdout: &str, package: &str, target_version: &str) -> boo
 }
 
 /// Parse cargo error output for conflict chain information.
+///
+/// Cargo error structure (real example):
+///   error: failed to select a version for `serde`.
+///       ... required by package `serde_json v1.0.149`
+///       ... which satisfies dependency `serde_json = "=1.0.149"` of package `root v0.1.0`
+///   versions that meet the requirements `^1.0.220` are: 1.0.228, 1.0.227, ...
+///   all possible versions conflict with previously selected packages.
+///     previously selected package `serde v1.0.150`
+///       ... which satisfies dependency `serde = "=1.0.150"` of package `root v0.1.0`
+///   failed to select a version for `serde` which could resolve this conflict
 fn parse_cargo_conflict(stderr: &str) -> Option<ConflictChain> {
     if stderr.is_empty() {
         return None;
@@ -218,31 +228,72 @@ fn parse_cargo_conflict(stderr: &str) -> Option<ConflictChain> {
 
     let mut links = Vec::new();
 
-    // Pattern: "failed to select a version for the requirement `foo = \"^2.0\"`"
-    let failed_re = Regex::new(r#"failed to select a version for the requirement `(\S+)\s*=\s*"([^"]+)"`"#).ok()?;
-    for cap in failed_re.captures_iter(stderr) {
+    // Pattern 1: Top-level "failed to select a version for `pkg`"
+    let failed_re = Regex::new(r#"failed to select a version for `([^`]+)`"#).ok()?;
+    let conflicted_pkg = failed_re
+        .captures(stderr)
+        .map(|cap| cap[1].to_string());
+
+    // Pattern 2: "required by package `name vX.Y.Z`"
+    let required_re = Regex::new(r"required by package `([^`\s]+)\s+v([^`]+)`").ok()?;
+
+    // Pattern 3: "satisfies dependency `name = \"...\"` of package `parent vX.Y.Z`"
+    let satisfies_re = Regex::new(
+        r#"satisfies dependency `([^`\s]+)\s*=\s*"([^"]+)"` of package `([^`\s]+)\s+v([^`]+)`"#,
+    ).ok()?;
+
+    // Pattern 4: "previously selected package `name vX.Y.Z`"
+    let previously_re = Regex::new(r"previously selected package `([^`\s]+)\s+v([^`]+)`").ok()?;
+
+    // Pattern 5: "versions that meet the requirements `...` are: ..."
+    let versions_re = Regex::new(r#"versions that meet the requirements `([^`]+)` are:\s*([^\n]+)"#).ok()?;
+
+    // Build links from all matched satisfies entries — each shows a requirement chain
+    for cap in satisfies_re.captures_iter(stderr) {
+        let pkg = &cap[1];
+        let constraint = &cap[2];
+        let parent = &cap[3];
+        let parent_ver = &cap[4];
         links.push(ConflictLink {
-            package: cap[1].to_string(),
-            constraint: cap[2].to_string(),
-            required_by: "(root)".into(),
+            package: pkg.to_string(),
+            constraint: constraint.to_string(),
+            required_by: format!("{parent} v{parent_ver}"),
         });
     }
 
-    // Pattern: "required by package `foo v1.0.0`"
-    let required_re = Regex::new(r"required by package `(\S+)\s+v(\S+)`").ok()?;
-    for cap in required_re.captures_iter(stderr) {
-        if let Some(last) = links.last_mut() {
-            last.required_by = format!("{} v{}", &cap[1], &cap[2]);
+    // Add "previously selected" entries as additional context
+    for cap in previously_re.captures_iter(stderr) {
+        let pkg = &cap[1];
+        let ver = &cap[2];
+        links.push(ConflictLink {
+            package: pkg.to_string(),
+            constraint: format!("currently {ver}"),
+            required_by: "(previously selected)".into(),
+        });
+    }
+
+    // Fallback: if no satisfies but we have "required by package", add those
+    if links.is_empty() {
+        for cap in required_re.captures_iter(stderr) {
+            let pkg = &cap[1];
+            let ver = &cap[2];
+            links.push(ConflictLink {
+                package: pkg.to_string(),
+                constraint: String::new(),
+                required_by: format!("{pkg} v{ver}"),
+            });
         }
     }
 
-    // Pattern: "which is depended on by `bar v1.0.0`"
-    let depended_re = Regex::new(r"which is depended on by `(\S+)\s+v(\S+)`").ok()?;
-    for cap in depended_re.captures_iter(stderr) {
+    // Add "versions that meet the requirements" as a synthetic link
+    if let Some(cap) = versions_re.captures(stderr) {
+        let req = &cap[1];
+        let available = cap[2].trim();
+        let pkg = conflicted_pkg.clone().unwrap_or_else(|| "(unknown)".to_string());
         links.push(ConflictLink {
-            package: cap[1].to_string(),
-            constraint: String::new(),
-            required_by: format!("{} v{}", &cap[1], &cap[2]),
+            package: pkg,
+            constraint: req.to_string(),
+            required_by: format!("available: {available}"),
         });
     }
 
@@ -250,7 +301,11 @@ fn parse_cargo_conflict(stderr: &str) -> Option<ConflictChain> {
         return None;
     }
 
-    let summary = first_error_line(stderr);
+    let summary = if let Some(pkg) = conflicted_pkg {
+        format!("Cannot select a version for `{pkg}` — incompatible with currently selected packages")
+    } else {
+        first_error_line(stderr)
+    };
     Some(ConflictChain { summary, links })
 }
 
