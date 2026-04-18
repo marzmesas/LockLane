@@ -92,6 +92,8 @@ pub struct BlockedUpdate {
     pub target_version: String,
     pub reason: String,
     pub conflict_chain: Option<ConflictChain>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggestion: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -160,6 +162,9 @@ pub struct AuditResponse {
 pub struct PackageLinks {
     pub changelog_url: Option<String>,
     pub home_page: Option<String>,
+    pub current_version_date: Option<String>,
+    pub latest_version: Option<String>,
+    pub latest_version_date: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

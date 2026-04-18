@@ -29,6 +29,7 @@ data class BlockedUpdate(
     @JsonProperty("target_version") val targetVersion: String = "",
     @JsonProperty("reason") val reason: String = "",
     @JsonProperty("conflict_chain") val conflictChain: ConflictChain? = null,
+    @JsonProperty("suggestion") val suggestion: String? = null,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)

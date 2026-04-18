@@ -26,6 +26,45 @@ def _extract_pinned_version(specifier: str) -> str | None:
     return m.group(1) if m else None
 
 
+def _find_fallback(
+    manifest_path: Path,
+    dependencies: list[ParsedDependency],
+    package: str,
+    candidates_by_level: dict[str, list[str]],
+    resolver: str,
+    python_path: str | None,
+    timeout: int,
+    exclude_newer: str | None,
+) -> str | None:
+    """Try up to 3 lower versions across all levels to find one that resolves."""
+    # Collect candidates in descending order (skip the highest we already tried)
+    fallbacks: list[str] = []
+    for level in ("major", "minor", "patch"):
+        level_cands = candidates_by_level.get(level, [])
+        # Skip the last (highest) which was already tried
+        for v in reversed(level_cands[:-1] if len(level_cands) > 1 else []):
+            fallbacks.append(v)
+            if len(fallbacks) >= 3:
+                break
+        if len(fallbacks) >= 3:
+            break
+
+    for target in fallbacks:
+        sim = simulate_candidate(
+            manifest_path=manifest_path,
+            dependencies=dependencies,
+            package=package,
+            target_version=target,
+            preferred_resolver=resolver,
+            python_path=python_path,
+            timeout=timeout,
+            exclude_newer=exclude_newer,
+        )
+        if sim.result == "SAFE_NOW":
+            return target
+    return None
+
+
 def _simulate_combined(
     manifest_path: Path,
     safe_updates: list[dict[str, str]],
@@ -151,6 +190,13 @@ def compose_upgrade_plan(
         if best_safe:
             safe_updates.append(best_safe)
         elif last_blocked_entry:
+            # Try to find a fallback suggestion from lower versions
+            suggestion = _find_fallback(
+                manifest_path, dependencies, dep.name, candidates_by_level,
+                resolver, python_path, timeout, exclude_newer,
+            )
+            if suggestion:
+                last_blocked_entry["suggestion"] = suggestion
             blocked_updates.append(last_blocked_entry)
 
     # 2. Compatibility check: if 2+ safe updates, verify they work together

@@ -51,40 +51,50 @@ class PlanResultPanel : JPanel() {
         model = javax.swing.tree.DefaultTreeModel(javax.swing.tree.DefaultMutableTreeNode("Select a blocked package"))
     }
 
-    private val safeTable = JBTable(safeModel).apply {
-        emptyText.text = "(no safe updates)"
-        columnModel.getColumn(0).apply {
-            preferredWidth = 30
-            maxWidth = 30
-            minWidth = 30
-        }
-        columnModel.getColumn(4).cellRenderer = BumpCellRenderer()
-        columnModel.getColumn(5).cellRenderer = LinkCellRenderer()
-        addMouseListener(object : MouseAdapter() {
-            override fun mouseClicked(e: MouseEvent) {
-                val col = columnAtPoint(e.point)
-                val row = rowAtPoint(e.point)
-                if (col == 5 && row >= 0) {
-                    val pkg = safeModel.data[row].packageName
-                    val links = packageLinks[pkg]
-                    val url = links?.changelogUrl ?: links?.homePage
-                    if (url != null) BrowserUtil.browse(url)
+    private val safeTable = object : JBTable(safeModel) {
+        init {
+            emptyText.text = "(no safe updates)"
+            columnModel.getColumn(0).apply {
+                preferredWidth = 30
+                maxWidth = 30
+                minWidth = 30
+            }
+            columnModel.getColumn(4).cellRenderer = BumpCellRenderer()
+            columnModel.getColumn(5).cellRenderer = LinkCellRenderer()
+            addMouseListener(object : MouseAdapter() {
+                override fun mouseClicked(e: MouseEvent) {
+                    val col = columnAtPoint(e.point)
+                    val row = rowAtPoint(e.point)
+                    if (col == 5 && row >= 0) {
+                        val pkg = safeModel.data[row].packageName
+                        val links = packageLinks[pkg]
+                        val url = links?.changelogUrl ?: links?.homePage
+                        if (url != null) BrowserUtil.browse(url)
+                    }
                 }
-            }
-        })
-        addMouseMotionListener(object : MouseAdapter() {
-            override fun mouseMoved(e: MouseEvent) {
-                val col = columnAtPoint(e.point)
-                val row = rowAtPoint(e.point)
-                cursor = if (col == 5 && row >= 0) {
-                    val pkg = safeModel.data[row].packageName
-                    val links = packageLinks[pkg]
-                    if (links?.changelogUrl != null || links?.homePage != null) {
-                        Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+            })
+            addMouseMotionListener(object : MouseAdapter() {
+                override fun mouseMoved(e: MouseEvent) {
+                    val col = columnAtPoint(e.point)
+                    val row = rowAtPoint(e.point)
+                    cursor = if (col == 5 && row >= 0) {
+                        val pkg = safeModel.data[row].packageName
+                        val links = packageLinks[pkg]
+                        if (links?.changelogUrl != null || links?.homePage != null) {
+                            Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                        } else Cursor.getDefaultCursor()
                     } else Cursor.getDefaultCursor()
-                } else Cursor.getDefaultCursor()
-            }
-        })
+                }
+            })
+        }
+
+        override fun getToolTipText(e: MouseEvent): String? {
+            val row = rowAtPoint(e.point)
+            if (row < 0 || row >= safeModel.data.size) return null
+            val pkg = safeModel.data[row].packageName
+            val links = packageLinks[pkg] ?: return null
+            return formatStalenessTooltip(pkg, links)
+        }
     }
     private val blockedTable = JBTable(blockedModel).apply {
         emptyText.text = "(no blocked updates)"
@@ -340,17 +350,19 @@ class PlanResultPanel : JPanel() {
             set(value) { field = value; fireTableDataChanged() }
 
         override fun getRowCount() = data.size
-        override fun getColumnCount() = 3
+        override fun getColumnCount() = 4
         override fun getColumnName(col: Int) = when (col) {
             0 -> "Package"
             1 -> "Target"
             2 -> "Reason"
+            3 -> "Suggestion"
             else -> ""
         }
         override fun getValueAt(row: Int, col: Int): Any = when (col) {
             0 -> data[row].packageName
             1 -> data[row].targetVersion
             2 -> data[row].reason
+            3 -> data[row].suggestion?.let { "try $it" } ?: ""
             else -> ""
         }
     }
@@ -556,6 +568,26 @@ class PlanResultPanel : JPanel() {
             "Medium" -> JBColor(Color(200, 170, 50), Color(220, 190, 70))
             "Low" -> JBColor(Color(80, 180, 80), Color(100, 200, 100))
             else -> defaultColor
+        }
+
+        fun formatStalenessTooltip(pkg: String, links: PackageLinks): String? {
+            val currentDate = links.currentVersionDate ?: return null
+            val latestVer = links.latestVersion ?: return null
+            val latestDate = links.latestVersionDate ?: return null
+            return try {
+                val current = java.time.Instant.parse(currentDate)
+                val latest = java.time.Instant.parse(latestDate)
+                val age = java.time.Duration.between(current, latest)
+                val days = age.toDays()
+                val ageStr = when {
+                    days < 30 -> "${days}d behind"
+                    days < 365 -> "${days / 30}mo behind"
+                    else -> "${days / 365}y ${(days % 365) / 30}mo behind"
+                }
+                "<html><b>$pkg</b><br>Latest: $latestVer ($ageStr)</html>"
+            } catch (_: Exception) {
+                null
+            }
         }
     }
 }

@@ -104,6 +104,7 @@ pub fn compose_upgrade_plan(
                         target_version: target.clone(),
                         reason: sim.explanation,
                         conflict_chain: sim.conflict_chain,
+                        suggestion: None,
                     });
                     // Continue trying lower bump levels
                 }
@@ -120,7 +121,9 @@ pub fn compose_upgrade_plan(
 
         if let Some(safe) = best_safe {
             safe_updates.push(safe);
-        } else if let Some(blocked) = last_blocked {
+        } else if let Some(mut blocked) = last_blocked {
+            // Try to find a fallback suggestion from lower versions
+            blocked.suggestion = find_fallback(manifest_path, &dep.name, &candidates);
             blocked_updates.push(blocked);
         }
     }
@@ -164,6 +167,37 @@ pub fn compose_upgrade_plan(
         ordered_steps,
         error: None,
     }
+}
+
+/// Try up to 3 lower versions to find one that resolves safely.
+fn find_fallback(
+    manifest_path: &Path,
+    package: &str,
+    candidates: &crates_io::UpgradeCandidates,
+) -> Option<String> {
+    let mut fallbacks = Vec::new();
+    for level in [&candidates.major, &candidates.minor, &candidates.patch] {
+        if level.len() > 1 {
+            // Skip the last (highest) which was already tried
+            for v in level[..level.len() - 1].iter().rev() {
+                fallbacks.push(v.clone());
+                if fallbacks.len() >= 3 {
+                    break;
+                }
+            }
+        }
+        if fallbacks.len() >= 3 {
+            break;
+        }
+    }
+
+    for target in &fallbacks {
+        let sim = simulator::simulate_candidate(manifest_path, package, target);
+        if sim.classification == "SAFE_NOW" {
+            return Some(target.clone());
+        }
+    }
+    None
 }
 
 /// Check if a dependency is a registry dep in the parsed TOML document.
