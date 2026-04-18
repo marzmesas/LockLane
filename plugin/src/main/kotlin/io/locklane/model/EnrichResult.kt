@@ -7,6 +7,9 @@ import com.fasterxml.jackson.annotation.JsonProperty
 data class PackageLinks(
     @JsonProperty("changelog_url") val changelogUrl: String? = null,
     @JsonProperty("home_page") val homePage: String? = null,
+    @JsonProperty("current_version_date") val currentVersionDate: String? = null,
+    @JsonProperty("latest_version") val latestVersion: String? = null,
+    @JsonProperty("latest_version_date") val latestVersionDate: String? = null,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)

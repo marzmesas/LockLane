@@ -245,26 +245,39 @@ fn cmd_enrich(manifest: &PathBuf, json_out: Option<&PathBuf>) {
 
     let mut packages = std::collections::HashMap::new();
     for dep in &deps {
-        match crates_io::fetch_crate_metadata(&dep.name) {
-            Ok(meta) => {
-                packages.insert(
-                    dep.name.clone(),
-                    PackageLinks {
-                        changelog_url: meta.get("changelog_url").and_then(|v| v.clone()),
-                        home_page: meta.get("home_page").and_then(|v| v.clone()),
-                    },
-                );
-            }
-            Err(_) => {
-                packages.insert(
-                    dep.name.clone(),
-                    PackageLinks {
-                        changelog_url: None,
-                        home_page: None,
-                    },
-                );
-            }
-        }
+        let meta = crates_io::fetch_crate_metadata(&dep.name).ok();
+        let dates = crates_io::fetch_versions_with_dates(&dep.name).ok();
+
+        let current_ver = cargo_parser::extract_pinned_version(&dep.specifier)
+            .unwrap_or_else(|| dep.specifier.clone());
+
+        let (current_date, latest_ver, latest_date) = if let Some(ref versions) = dates {
+            let cur_date = versions.iter()
+                .find(|(v, _)| *v == current_ver)
+                .and_then(|(_, d)| d.clone());
+            // Find latest stable version
+            let latest = versions.iter()
+                .filter(|(v, _)| semver::Version::parse(v).map(|sv| sv.pre.is_empty()).unwrap_or(false))
+                .max_by(|(a, _), (b, _)| {
+                    semver::Version::parse(a).unwrap_or(semver::Version::new(0, 0, 0))
+                        .cmp(&semver::Version::parse(b).unwrap_or(semver::Version::new(0, 0, 0)))
+                });
+            let (lv, ld) = latest.map(|(v, d)| (Some(v.clone()), d.clone())).unwrap_or((None, None));
+            (cur_date, lv, ld)
+        } else {
+            (None, None, None)
+        };
+
+        packages.insert(
+            dep.name.clone(),
+            PackageLinks {
+                changelog_url: meta.as_ref().and_then(|m| m.get("changelog_url").and_then(|v| v.clone())),
+                home_page: meta.as_ref().and_then(|m| m.get("home_page").and_then(|v| v.clone())),
+                current_version_date: current_date,
+                latest_version: latest_ver,
+                latest_version_date: latest_date,
+            },
+        );
     }
 
     let resp = EnrichResponse {

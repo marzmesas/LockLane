@@ -416,12 +416,30 @@ def enrich_cmd(manifest: Path) -> dict[str, Any]:
                     changelog_url = value
                     break
 
+            # Extract upload dates for staleness
+            current_ver = dep.specifier.lstrip("=").strip()
+            releases = data.get("releases", {})
+            current_date = None
+            if current_ver in releases and releases[current_ver]:
+                current_date = releases[current_ver][0].get("upload_time_iso_8601")
+
+            latest_ver = info.get("version", "")
+            latest_date = None
+            if latest_ver in releases and releases[latest_ver]:
+                latest_date = releases[latest_ver][0].get("upload_time_iso_8601")
+
             packages[dep.name] = {
                 "changelog_url": changelog_url,
                 "home_page": home_page or None,
+                "current_version_date": current_date,
+                "latest_version": latest_ver or None,
+                "latest_version_date": latest_date,
             }
         except Exception:
-            packages[dep.name] = {"changelog_url": None, "home_page": None}
+            packages[dep.name] = {
+                "changelog_url": None, "home_page": None,
+                "current_version_date": None, "latest_version": None, "latest_version_date": None,
+            }
 
     return {
         "schema_version": SCHEMA_VERSION,
