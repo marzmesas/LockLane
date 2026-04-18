@@ -113,5 +113,36 @@
                 language="TEXT"
                 implementationClass="io.locklane.editor.DependencyLineMarkerProvider"/>
     </extensions>
+
+    <actions>
+        <action id="LockLane.SelectManifest"
+                class="io.locklane.action.SelectManifestAction"
+                text="Select Manifest"
+                description="Choose dependency manifest files"
+                icon="AllIcons.Actions.MenuOpen">
+            <keyboard-shortcut first-keystroke="alt shift L" keymap="$default"/>
+        </action>
+        <action id="LockLane.RunPlan"
+                class="io.locklane.action.RunPlanAction"
+                text="Run Plan"
+                description="Generate an upgrade plan"
+                icon="AllIcons.Actions.Execute">
+            <keyboard-shortcut first-keystroke="alt shift P" keymap="$default"/>
+        </action>
+        <action id="LockLane.ApplyPlan"
+                class="io.locklane.action.ApplyPlanAction"
+                text="Apply Plan"
+                description="Apply the plan (dry-run first)"
+                icon="AllIcons.Diff.ApplyNotConflicts">
+            <keyboard-shortcut first-keystroke="alt shift A" keymap="$default"/>
+        </action>
+        <action id="LockLane.ExportPlan"
+                class="io.locklane.action.ExportPlanAction"
+                text="Export Plan as Markdown"
+                description="Copy upgrade plan to clipboard as Markdown"
+                icon="AllIcons.Actions.Copy">
+            <keyboard-shortcut first-keystroke="alt shift E" keymap="$default"/>
+        </action>
+    </actions>
 </idea-plugin>
 
