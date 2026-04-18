@@ -8,6 +8,8 @@ import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.content.ContentFactory
 import io.locklane.action.ApplyPlanAction
+import io.locklane.action.CreatePRAction
+import io.locklane.action.ExportPlanAction
 import io.locklane.action.RollbackHistoryAction
 import io.locklane.action.RunBaselineAction
 import io.locklane.action.RunPlanAction
@@ -35,6 +37,8 @@ class LockLaneToolWindowFactory : ToolWindowFactory {
             add(VerifyPlanAction())
             add(ApplyPlanAction())
             add(Separator())
+            add(ExportPlanAction())
+            add(CreatePRAction())
             add(RollbackHistoryAction())
         }
 
