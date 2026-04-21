@@ -31,7 +31,11 @@
         "properties": {
           "package": { "type": "string" },
           "from_version": { "type": "string" },
-          "to_version": { "type": "string" }
+          "to_version": { "type": "string" },
+          "group_id": {
+            "type": "string",
+            "description": "Identifier shared by safe updates that must be applied together. Updates with the same group_id are interdependent — applying a subset would break the resolved graph. Absent or null means the update is independent and can be applied on its own."
+          }
         }
       }
     },
