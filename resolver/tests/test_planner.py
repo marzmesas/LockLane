@@ -9,6 +9,7 @@ from unittest import mock
 
 from locklane_resolver.models import ParsedDependency
 from locklane_resolver.planner import (
+    _compute_groups,
     _extract_pinned_version,
     _simulate_combined,
     compose_upgrade_plan,
@@ -286,6 +287,208 @@ class SimulateCombinedTests(unittest.TestCase):
 
             ok = _simulate_combined(manifest, updates, deps, "uv", None)
             self.assertFalse(ok)
+
+
+class ComputeGroupsTests(unittest.TestCase):
+    """Tests for _compute_groups()."""
+
+    def _setup(self, tmp: str) -> tuple[Path, list[ParsedDependency]]:
+        manifest = Path(tmp) / "requirements.txt"
+        manifest.write_text(
+            "a==1.0.0\nb==1.0.0\nc==1.0.0\n", encoding="utf-8",
+        )
+        deps = [
+            ParsedDependency("a", "==1.0.0", "a==1.0.0", 1),
+            ParsedDependency("b", "==1.0.0", "b==1.0.0", 2),
+            ParsedDependency("c", "==1.0.0", "c==1.0.0", 3),
+        ]
+        return manifest, deps
+
+    @staticmethod
+    def _updates(*names: str) -> list[dict[str, str]]:
+        return [
+            {"package": n, "from_version": "1.0.0", "to_version": "2.0.0"}
+            for n in names
+        ]
+
+    def test_empty_and_singleton_skip(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest, deps = self._setup(tmp)
+            self.assertEqual(
+                _compute_groups(manifest, [], deps, "uv", None), {},
+            )
+            self.assertEqual(
+                _compute_groups(manifest, self._updates("a"), deps, "uv", None), {},
+            )
+
+    @mock.patch("locklane_resolver.planner._simulate_combined")
+    def test_all_independent(self, mock_sim: mock.Mock) -> None:
+        mock_sim.return_value = True  # every subset resolves
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest, deps = self._setup(tmp)
+            result = _compute_groups(
+                manifest, self._updates("a", "b", "c"), deps, "uv", None,
+            )
+            self.assertEqual(result, {})
+
+    @mock.patch("locklane_resolver.planner._simulate_combined")
+    def test_pair_interdependent_plus_independent(self, mock_sim: mock.Mock) -> None:
+        # a and b must move together; c is independent.
+        def resolves(
+            manifest_path: Path,
+            subset: list[dict[str, str]],
+            *_args: object,
+            **_kwargs: object,
+        ) -> bool:
+            pkgs = frozenset(u["package"] for u in subset)
+            # Singletons: c resolves, a and b do not.
+            if pkgs == {"c"}:
+                return True
+            if pkgs in ({"a"}, {"b"}):
+                return False
+            # a+b together resolves.
+            if pkgs == {"a", "b"}:
+                return True
+            return True
+
+        mock_sim.side_effect = resolves
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest, deps = self._setup(tmp)
+            result = _compute_groups(
+                manifest, self._updates("a", "b", "c"), deps, "uv", None,
+            )
+            self.assertEqual(result.get("a"), result.get("b"))
+            self.assertIsNotNone(result.get("a"))
+            self.assertNotIn("c", result)
+
+    @mock.patch("locklane_resolver.planner._simulate_combined")
+    def test_all_three_interdependent(self, mock_sim: mock.Mock) -> None:
+        # No proper subset resolves; only {a, b, c} does.
+        def resolves(
+            manifest_path: Path,
+            subset: list[dict[str, str]],
+            *_args: object,
+            **_kwargs: object,
+        ) -> bool:
+            return len(subset) == 3
+
+        mock_sim.side_effect = resolves
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest, deps = self._setup(tmp)
+            result = _compute_groups(
+                manifest, self._updates("a", "b", "c"), deps, "uv", None,
+            )
+            self.assertEqual(len(result), 3)
+            self.assertEqual(len({result["a"], result["b"], result["c"]}), 1)
+
+    @mock.patch("locklane_resolver.planner._simulate_combined")
+    def test_two_disjoint_pairs(self, mock_sim: mock.Mock) -> None:
+        # {a, b} must move together; {c, d} must move together; no cross edges.
+        def resolves(
+            manifest_path: Path,
+            subset: list[dict[str, str]],
+            *_args: object,
+            **_kwargs: object,
+        ) -> bool:
+            pkgs = frozenset(u["package"] for u in subset)
+            pair_ab = pkgs & {"a", "b"}
+            pair_cd = pkgs & {"c", "d"}
+            ab_ok = len(pair_ab) != 1  # not alone
+            cd_ok = len(pair_cd) != 1
+            return ab_ok and cd_ok
+
+        mock_sim.side_effect = resolves
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "requirements.txt"
+            manifest.write_text(
+                "a==1.0.0\nb==1.0.0\nc==1.0.0\nd==1.0.0\n", encoding="utf-8",
+            )
+            deps = [
+                ParsedDependency("a", "==1.0.0", "a==1.0.0", 1),
+                ParsedDependency("b", "==1.0.0", "b==1.0.0", 2),
+                ParsedDependency("c", "==1.0.0", "c==1.0.0", 3),
+                ParsedDependency("d", "==1.0.0", "d==1.0.0", 4),
+            ]
+            result = _compute_groups(
+                manifest, self._updates("a", "b", "c", "d"), deps, "uv", None,
+            )
+            self.assertEqual(result["a"], result["b"])
+            self.assertEqual(result["c"], result["d"])
+            self.assertNotEqual(result["a"], result["c"])
+
+
+class ComposeUpgradePlanGroupingTests(unittest.TestCase):
+    """End-to-end grouping integration in compose_upgrade_plan."""
+
+    @mock.patch("locklane_resolver.planner.enumerate_upgrade_candidates")
+    @mock.patch("locklane_resolver.planner.simulate_candidate")
+    @mock.patch("locklane_resolver.planner._simulate_combined")
+    def test_group_id_attached_when_interdependent(
+        self,
+        mock_combined: mock.Mock,
+        mock_sim: mock.Mock,
+        mock_enum: mock.Mock,
+    ) -> None:
+        mock_enum.side_effect = lambda pkg, ver, **kw: {"patch": ["1.0.1"]}
+        mock_sim.side_effect = lambda **kw: SimulationResult(
+            result="SAFE_NOW", explanation="ok",
+        )
+
+        # Full set resolves; {a} and {b} alone do not; {a, b} does.
+        def combined(
+            manifest_path: Path,
+            subset: list[dict[str, str]],
+            *_args: object,
+            **_kwargs: object,
+        ) -> bool:
+            pkgs = frozenset(u["package"] for u in subset)
+            if pkgs in ({"a"}, {"b"}):
+                return False
+            return True
+
+        mock_combined.side_effect = combined
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "requirements.txt"
+            manifest.write_text("a==1.0.0\nb==1.0.0\n", encoding="utf-8")
+            deps = [
+                ParsedDependency("a", "==1.0.0", "a==1.0.0", 1),
+                ParsedDependency("b", "==1.0.0", "b==1.0.0", 2),
+            ]
+
+            result = compose_upgrade_plan(manifest, deps, "uv")
+
+            updates = {u["package"]: u for u in result["safe_updates"]}
+            self.assertEqual(updates["a"]["group_id"], updates["b"]["group_id"])
+            self.assertIsNotNone(updates["a"]["group_id"])
+
+    @mock.patch("locklane_resolver.planner.enumerate_upgrade_candidates")
+    @mock.patch("locklane_resolver.planner.simulate_candidate")
+    @mock.patch("locklane_resolver.planner._simulate_combined")
+    def test_no_group_id_when_independent(
+        self,
+        mock_combined: mock.Mock,
+        mock_sim: mock.Mock,
+        mock_enum: mock.Mock,
+    ) -> None:
+        mock_enum.side_effect = lambda pkg, ver, **kw: {"patch": ["1.0.1"]}
+        mock_sim.side_effect = lambda **kw: SimulationResult(
+            result="SAFE_NOW", explanation="ok",
+        )
+        mock_combined.return_value = True  # every subset resolves
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "requirements.txt"
+            manifest.write_text("a==1.0.0\nb==1.0.0\n", encoding="utf-8")
+            deps = [
+                ParsedDependency("a", "==1.0.0", "a==1.0.0", 1),
+                ParsedDependency("b", "==1.0.0", "b==1.0.0", 2),
+            ]
+
+            result = compose_upgrade_plan(manifest, deps, "uv")
+
+            for update in result["safe_updates"]:
+                self.assertNotIn("group_id", update)
 
 
 if __name__ == "__main__":

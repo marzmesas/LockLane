@@ -73,9 +73,12 @@ def _simulate_combined(
     python_path: str | None,
     exclude_newer: str | None = None,
 ) -> bool:
-    """Resolve manifest with all safe bumps applied simultaneously.
+    """Resolve manifest with a set of safe bumps applied simultaneously.
 
-    Returns True if combined resolution succeeds, False otherwise.
+    Any package not listed in ``safe_updates`` is left at its current
+    pinned version. Returns True if combined resolution succeeds, False
+    otherwise. Also used to probe arbitrary subsets when computing
+    interdependency groups.
     """
     temp_dir = Path(tempfile.mkdtemp(prefix="locklane-combined-"))
     try:
@@ -97,6 +100,116 @@ def _simulate_combined(
             return False
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def _compute_groups(
+    manifest_path: Path,
+    safe_updates: list[dict[str, str]],
+    dependencies: list[ParsedDependency],
+    resolver: str,
+    python_path: str | None,
+    exclude_newer: str | None = None,
+) -> dict[str, str]:
+    """Assign interdependency group IDs to safe updates.
+
+    For each safe update, probes whether it resolves on its own (with
+    every other dependency at its current pinned version). If not,
+    greedy-adds peers from ``safe_updates`` in alphabetical order until
+    resolution succeeds — those peers must move together.
+
+    The resulting peer relation is symmetrized and decomposed into
+    connected components; each multi-member component gets a stable
+    ``g1``, ``g2``, ... id. Independent updates are omitted from the
+    returned mapping.
+    """
+    if len(safe_updates) < 2:
+        return {}
+
+    safe_by_pkg = {u["package"]: u for u in safe_updates}
+    all_pkgs_sorted = sorted(safe_by_pkg.keys())
+
+    requires: dict[str, set[str]] = {pkg: set() for pkg in all_pkgs_sorted}
+    for pkg in all_pkgs_sorted:
+        update = safe_by_pkg[pkg]
+        if _simulate_combined(
+            manifest_path, [update], dependencies, resolver, python_path,
+            exclude_newer=exclude_newer,
+        ):
+            continue
+
+        current_subset = [update]
+        for peer in all_pkgs_sorted:
+            if peer == pkg:
+                continue
+            current_subset.append(safe_by_pkg[peer])
+            requires[pkg].add(peer)
+            if _simulate_combined(
+                manifest_path, current_subset, dependencies, resolver, python_path,
+                exclude_newer=exclude_newer,
+            ):
+                break
+
+    # Greedy may over-approximate (alphabetical sweep pulls in unrelated peers
+    # that just happen to be in an interdependent pair of their own). Use
+    # strongly connected components of the directed requires graph: a package
+    # and its peer share a group only if they mutually require each other
+    # (directly or transitively).
+    sccs = _tarjan_sccs(requires, all_pkgs_sorted)
+
+    group_ids: dict[str, str] = {}
+    group_counter = 0
+    for component in sccs:
+        if len(component) < 2:
+            continue
+        group_counter += 1
+        gid = f"g{group_counter}"
+        for pkg in component:
+            group_ids[pkg] = gid
+    return group_ids
+
+
+def _tarjan_sccs(
+    graph: dict[str, set[str]],
+    nodes: list[str],
+) -> list[list[str]]:
+    """Tarjan's SCC. Returns components sorted by their lowest-named member."""
+    indices: dict[str, int] = {}
+    lowlink: dict[str, int] = {}
+    on_stack: set[str] = set()
+    stack: list[str] = []
+    counter = [0]
+    result: list[list[str]] = []
+
+    def strongconnect(v: str) -> None:
+        indices[v] = counter[0]
+        lowlink[v] = counter[0]
+        counter[0] += 1
+        stack.append(v)
+        on_stack.add(v)
+
+        for w in graph.get(v, set()):
+            if w not in indices:
+                strongconnect(w)
+                lowlink[v] = min(lowlink[v], lowlink[w])
+            elif w in on_stack:
+                lowlink[v] = min(lowlink[v], indices[w])
+
+        if lowlink[v] == indices[v]:
+            component: list[str] = []
+            while True:
+                w = stack.pop()
+                on_stack.discard(w)
+                component.append(w)
+                if w == v:
+                    break
+            result.append(sorted(component))
+
+    for v in nodes:
+        if v not in indices:
+            strongconnect(v)
+
+    result.sort(key=lambda c: c[0])
+    return result
 
 
 def compose_upgrade_plan(
@@ -206,6 +319,18 @@ def compose_upgrade_plan(
             manifest_path, safe_updates, dependencies, resolver, python_path,
             exclude_newer=exclude_newer,
         )
+
+    # 2b. Interdependency groups. Only meaningful when the full set resolves —
+    # if it doesn't, users fall back to sequential steps anyway.
+    if combined_ok and len(safe_updates) >= 2:
+        group_ids = _compute_groups(
+            manifest_path, safe_updates, dependencies, resolver, python_path,
+            exclude_newer=exclude_newer,
+        )
+        for update in safe_updates:
+            gid = group_ids.get(update["package"])
+            if gid is not None:
+                update["group_id"] = gid
 
     # 3. Build ordered_steps
     ordered_steps: list[dict[str, Any]]
