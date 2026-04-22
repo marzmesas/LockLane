@@ -114,6 +114,56 @@ class TestPEP735Parsing:
 
 
 # ---------------------------------------------------------------------------
+# Sidecar uv.lock integration
+# ---------------------------------------------------------------------------
+
+class TestUvLockIntegration:
+    def test_locked_version_populated_when_uv_lock_present(self, tmp_path):
+        (tmp_path / "pyproject.toml").write_text(
+            "[project]\nname = \"x\"\nversion = \"0\"\n"
+            "dependencies = [\n"
+            "    \"fastapi~=0.128.8\",\n"
+            "    \"pydantic~=2.11.2\",\n"
+            "]\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "uv.lock").write_text(
+            "version = 1\n"
+            "[[package]]\nname = \"fastapi\"\nversion = \"0.128.8\"\n"
+            "[[package]]\nname = \"pydantic\"\nversion = \"2.11.2\"\n",
+            encoding="utf-8",
+        )
+        deps = parse_pyproject_dependencies(tmp_path / "pyproject.toml")
+        by_name = {d.name.lower(): d for d in deps}
+        assert by_name["fastapi"].locked_version == "0.128.8"
+        assert by_name["pydantic"].locked_version == "2.11.2"
+
+    def test_locked_version_none_when_no_uv_lock(self, tmp_path):
+        (tmp_path / "pyproject.toml").write_text(
+            "[project]\nname = \"x\"\nversion = \"0\"\n"
+            "dependencies = [\"fastapi~=0.128.8\"]\n",
+            encoding="utf-8",
+        )
+        deps = parse_pyproject_dependencies(tmp_path / "pyproject.toml")
+        assert deps[0].locked_version is None
+
+    def test_locked_version_none_for_deps_missing_from_lock(self, tmp_path):
+        (tmp_path / "pyproject.toml").write_text(
+            "[project]\nname = \"x\"\nversion = \"0\"\n"
+            "dependencies = [\"fastapi~=0.128.8\", \"unknown-pkg~=1.0.0\"]\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "uv.lock").write_text(
+            "version = 1\n[[package]]\nname = \"fastapi\"\nversion = \"0.128.8\"\n",
+            encoding="utf-8",
+        )
+        deps = parse_pyproject_dependencies(tmp_path / "pyproject.toml")
+        by_name = {d.name.lower(): d for d in deps}
+        assert by_name["fastapi"].locked_version == "0.128.8"
+        assert by_name["unknown-pkg"].locked_version is None
+
+
+# ---------------------------------------------------------------------------
 # parse_manifest dispatch
 # ---------------------------------------------------------------------------
 

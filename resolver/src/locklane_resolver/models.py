@@ -32,12 +32,21 @@ class ToolAvailability:
 
 @dataclass(slots=True)
 class ParsedDependency:
-    """Representation of a parsed dependency line from requirements files."""
+    """Representation of a parsed dependency line from requirements files.
+
+    ``locked_version`` holds the version recorded in a sibling lockfile
+    (``uv.lock`` next to pyproject.toml, or the compiled ``.txt`` next to
+    a requirements ``.in``). It is ``None`` when no lockfile is present
+    or the package isn't in it. The planner uses it as the "current"
+    version when the manifest specifier is a range (``~=``, ``>=``) rather
+    than an exact pin.
+    """
 
     name: str
     specifier: str
     raw_line: str
     line_number: int
+    locked_version: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

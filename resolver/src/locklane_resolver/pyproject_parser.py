@@ -7,6 +7,7 @@ import tomllib
 from pathlib import Path
 
 from .models import ParsedDependency
+from .uv_lock import parse_uv_lock
 
 
 # ---------------------------------------------------------------------------
@@ -148,10 +149,17 @@ def _parse_dep_string(dep_str: str) -> tuple[str, str]:
 # ---------------------------------------------------------------------------
 
 def parse_pyproject_dependencies(manifest_path: Path) -> list[ParsedDependency]:
-    """Parse dependencies from a pyproject.toml file."""
+    """Parse dependencies from a pyproject.toml file.
+
+    When a sibling ``uv.lock`` is present, each returned dependency is
+    annotated with ``locked_version`` so callers can recover the current
+    version even for range specifiers like ``~=1.2.3``.
+    """
     text = manifest_path.read_text(encoding="utf-8")
     data = tomllib.loads(text)
     raw_lines = text.splitlines()
+
+    locks = parse_uv_lock(manifest_path.parent / "uv.lock")
 
     sections = _detect_sections(data)
     dependencies: list[ParsedDependency] = []
@@ -173,6 +181,7 @@ def parse_pyproject_dependencies(manifest_path: Path) -> list[ParsedDependency]:
                 specifier=specifier,
                 raw_line=raw_line,
                 line_number=line_number,
+                locked_version=locks.get(name_lower),
             ))
 
     return dependencies
