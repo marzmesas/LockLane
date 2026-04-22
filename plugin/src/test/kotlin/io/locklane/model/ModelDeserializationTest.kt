@@ -156,6 +156,33 @@ class ModelDeserializationTest {
     }
 
     @Test
+    fun `safe update parses group_id when present and defaults to null when absent`() {
+        val json = """
+        {
+            "schema_version": "0.6.0",
+            "timestamp_utc": "2026-01-15T10:32:00+00:00",
+            "status": "ok",
+            "manifest_path": "/project/requirements.txt",
+            "resolver": "uv",
+            "safe_updates": [
+                {"package": "a", "from_version": "1.0.0", "to_version": "2.0.0", "group_id": "g1"},
+                {"package": "b", "from_version": "1.0.0", "to_version": "2.0.0", "group_id": "g1"},
+                {"package": "c", "from_version": "1.0.0", "to_version": "2.0.0"}
+            ],
+            "blocked_updates": [],
+            "inconclusive_updates": [],
+            "ordered_steps": []
+        }
+        """.trimIndent()
+
+        val plan = mapper.readValue(json, UpgradePlan::class.java)
+
+        assertEquals("g1", plan.safeUpdates[0].groupId)
+        assertEquals("g1", plan.safeUpdates[1].groupId)
+        assertNull(plan.safeUpdates[2].groupId)
+    }
+
+    @Test
     fun `unknown fields are ignored during deserialization`() {
         val json = """
         {

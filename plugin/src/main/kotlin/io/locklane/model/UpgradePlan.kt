@@ -8,6 +8,7 @@ data class SafeUpdate(
     @JsonProperty("package") val packageName: String = "",
     @JsonProperty("from_version") val fromVersion: String = "",
     @JsonProperty("to_version") val toVersion: String = "",
+    @JsonProperty("group_id") val groupId: String? = null,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)

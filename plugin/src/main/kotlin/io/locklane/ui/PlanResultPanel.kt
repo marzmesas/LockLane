@@ -309,6 +309,7 @@ class PlanResultPanel : JPanel() {
             for (i in data.indices) {
                 selected[i] = bumpSeverity(data[i].fromVersion, data[i].toVersion) in levels
             }
+            io.locklane.model.GroupCascade.enforceGroupCoherence(data, selected)
             fireTableDataChanged()
         }
 
@@ -330,8 +331,12 @@ class PlanResultPanel : JPanel() {
         override fun isCellEditable(row: Int, col: Int) = col == 0
         override fun setValueAt(value: Any?, row: Int, col: Int) {
             if (col == 0 && value is Boolean) {
-                selected[row] = value
-                fireTableCellUpdated(row, col)
+                val changed = io.locklane.model.GroupCascade.toggleRow(data, selected, row, value)
+                if (changed.size == 1) {
+                    fireTableCellUpdated(row, col)
+                } else if (changed.isNotEmpty()) {
+                    fireTableDataChanged()
+                }
             }
         }
         override fun getValueAt(row: Int, col: Int): Any = when (col) {
