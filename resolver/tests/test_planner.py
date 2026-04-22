@@ -43,16 +43,16 @@ class ExtractPinnedVersionTests(unittest.TestCase):
 class ComposeUpgradePlanTests(unittest.TestCase):
     """Tests for compose_upgrade_plan()."""
 
-    @mock.patch("locklane_resolver.planner.enumerate_patch_candidates")
+    @mock.patch("locklane_resolver.planner.enumerate_upgrade_candidates")
     @mock.patch("locklane_resolver.planner.simulate_candidate")
     @mock.patch("locklane_resolver.planner._simulate_combined", return_value=True)
     def test_all_safe(
         self, mock_combined: mock.Mock, mock_sim: mock.Mock, mock_enum: mock.Mock,
     ) -> None:
         mock_enum.side_effect = lambda pkg, ver, **kw: {
-            "requests": ["2.31.1", "2.31.2"],
-            "click": ["8.1.8"],
-        }.get(pkg, [])
+            "requests": {"patch": ["2.31.1", "2.31.2"]},
+            "click": {"patch": ["8.1.8"]},
+        }.get(pkg, {})
 
         mock_sim.side_effect = lambda **kw: SimulationResult(
             result="SAFE_NOW",
@@ -85,15 +85,15 @@ class ComposeUpgradePlanTests(unittest.TestCase):
             self.assertEqual(result["safe_updates"][0]["to_version"], "8.1.8")
             self.assertEqual(result["safe_updates"][1]["to_version"], "2.31.2")
 
-    @mock.patch("locklane_resolver.planner.enumerate_patch_candidates")
+    @mock.patch("locklane_resolver.planner.enumerate_upgrade_candidates")
     @mock.patch("locklane_resolver.planner.simulate_candidate")
     def test_mixed_results(
         self, mock_sim: mock.Mock, mock_enum: mock.Mock,
     ) -> None:
         mock_enum.side_effect = lambda pkg, ver, **kw: {
-            "click": ["8.1.8"],
-            "requests": ["2.31.1"],
-        }.get(pkg, [])
+            "click": {"patch": ["8.1.8"]},
+            "requests": {"patch": ["2.31.1"]},
+        }.get(pkg, {})
 
         chain = ConflictChain(
             summary="conflict", links=[ConflictLink("bar", ">=2.0", "foo")],
@@ -125,7 +125,7 @@ class ComposeUpgradePlanTests(unittest.TestCase):
             self.assertEqual(result["blocked_updates"][0]["package"], "requests")
             self.assertIn("conflict_chain", result["blocked_updates"][0])
 
-    @mock.patch("locklane_resolver.planner.enumerate_patch_candidates")
+    @mock.patch("locklane_resolver.planner.enumerate_upgrade_candidates")
     @mock.patch("locklane_resolver.planner.simulate_candidate")
     def test_no_pinned_deps(
         self, mock_sim: mock.Mock, mock_enum: mock.Mock,
@@ -146,7 +146,7 @@ class ComposeUpgradePlanTests(unittest.TestCase):
             mock_sim.assert_not_called()
             mock_enum.assert_not_called()
 
-    @mock.patch("locklane_resolver.planner.enumerate_patch_candidates")
+    @mock.patch("locklane_resolver.planner.enumerate_upgrade_candidates")
     @mock.patch("locklane_resolver.planner.simulate_candidate")
     def test_empty_manifest(
         self, mock_sim: mock.Mock, mock_enum: mock.Mock,
@@ -162,13 +162,13 @@ class ComposeUpgradePlanTests(unittest.TestCase):
             self.assertEqual(result["inconclusive_updates"], [])
             self.assertEqual(result["ordered_steps"], [])
 
-    @mock.patch("locklane_resolver.planner.enumerate_patch_candidates")
+    @mock.patch("locklane_resolver.planner.enumerate_upgrade_candidates")
     @mock.patch("locklane_resolver.planner.simulate_candidate")
     @mock.patch("locklane_resolver.planner._simulate_combined", return_value=False)
     def test_combined_failure_yields_individual_steps(
         self, mock_combined: mock.Mock, mock_sim: mock.Mock, mock_enum: mock.Mock,
     ) -> None:
-        mock_enum.side_effect = lambda pkg, ver, **kw: ["1.0.1"]
+        mock_enum.side_effect = lambda pkg, ver, **kw: {"patch": ["1.0.1"]}
         mock_sim.side_effect = lambda **kw: SimulationResult(
             result="SAFE_NOW", explanation="ok",
         )
@@ -190,13 +190,13 @@ class ComposeUpgradePlanTests(unittest.TestCase):
             self.assertEqual(result["ordered_steps"][0]["step"], 1)
             self.assertEqual(result["ordered_steps"][1]["step"], 2)
 
-    @mock.patch("locklane_resolver.planner.enumerate_patch_candidates")
+    @mock.patch("locklane_resolver.planner.enumerate_upgrade_candidates")
     @mock.patch("locklane_resolver.planner.simulate_candidate")
     def test_determinism(
         self, mock_sim: mock.Mock, mock_enum: mock.Mock,
     ) -> None:
         """Same inputs produce identical output (ignoring external state)."""
-        mock_enum.side_effect = lambda pkg, ver, **kw: ["1.0.1"]
+        mock_enum.side_effect = lambda pkg, ver, **kw: {"patch": ["1.0.1"]}
         mock_sim.side_effect = lambda **kw: SimulationResult(
             result="SAFE_NOW", explanation="ok",
         )
@@ -222,12 +222,12 @@ class ComposeUpgradePlanTests(unittest.TestCase):
             self.assertEqual(r1["blocked_updates"], r2["blocked_updates"])
             self.assertEqual(r1["ordered_steps"], r2["ordered_steps"])
 
-    @mock.patch("locklane_resolver.planner.enumerate_patch_candidates")
+    @mock.patch("locklane_resolver.planner.enumerate_upgrade_candidates")
     @mock.patch("locklane_resolver.planner.simulate_candidate")
     def test_inconclusive_result(
         self, mock_sim: mock.Mock, mock_enum: mock.Mock,
     ) -> None:
-        mock_enum.return_value = ["1.0.1"]
+        mock_enum.return_value = {"patch": ["1.0.1"]}
         mock_sim.return_value = SimulationResult(
             result="INCONCLUSIVE",
             explanation="Version not found in output.",
