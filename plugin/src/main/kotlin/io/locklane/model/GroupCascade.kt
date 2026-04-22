@@ -38,6 +38,18 @@ object GroupCascade {
     }
 
     /**
+     * Return the package names of every other safe update sharing [row]'s
+     * non-null groupId. Empty when [row] is ungrouped or alone in its group.
+     */
+    fun peersOf(data: List<SafeUpdate>, row: Int): List<String> {
+        val gid = data[row].groupId ?: return emptyList()
+        val selfName = data[row].packageName
+        return data
+            .filter { it.groupId == gid && it.packageName != selfName }
+            .map { it.packageName }
+    }
+
+    /**
      * After a bulk predicate-based selection, coerce each group to an
      * all-or-nothing state: if any member was deselected, deselect every
      * member. This preserves the invariant that groups never appear in

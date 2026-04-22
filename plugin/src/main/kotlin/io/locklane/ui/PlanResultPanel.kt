@@ -8,6 +8,7 @@ import com.intellij.ide.BrowserUtil
 import io.locklane.model.AuditResult
 import io.locklane.model.BlockedUpdate
 import io.locklane.model.EnrichResult
+import io.locklane.model.GroupCascade
 import io.locklane.model.InconclusiveUpdate
 import io.locklane.model.PackageLinks
 import io.locklane.model.SafeUpdate
@@ -59,6 +60,7 @@ class PlanResultPanel : JPanel() {
                 maxWidth = 30
                 minWidth = 30
             }
+            columnModel.getColumn(1).cellRenderer = PackageCellRenderer()
             columnModel.getColumn(4).cellRenderer = BumpCellRenderer()
             columnModel.getColumn(5).cellRenderer = LinkCellRenderer()
             addMouseListener(object : MouseAdapter() {
@@ -90,10 +92,17 @@ class PlanResultPanel : JPanel() {
 
         override fun getToolTipText(e: MouseEvent): String? {
             val row = rowAtPoint(e.point)
+            val col = columnAtPoint(e.point)
             if (row < 0 || row >= safeModel.data.size) return null
-            val pkg = safeModel.data[row].packageName
-            val links = packageLinks[pkg] ?: return null
-            return formatStalenessTooltip(pkg, links)
+            val update = safeModel.data[row]
+            if (col == 1 && update.groupId != null) {
+                val peers = GroupCascade.peersOf(safeModel.data, row)
+                if (peers.isNotEmpty()) {
+                    return formatGroupTooltip(peers)
+                }
+            }
+            val links = packageLinks[update.packageName] ?: return null
+            return formatStalenessTooltip(update.packageName, links)
         }
     }
     private val blockedTable = JBTable(blockedModel).apply {
@@ -125,6 +134,18 @@ class PlanResultPanel : JPanel() {
         add(linkButton("None") { safeModel.deselectAll(); fixCheckboxColumnWidth() })
     }
 
+    private val cascadeBannerLabel = javax.swing.JLabel("")
+    private val cascadeBanner = JPanel(FlowLayout(FlowLayout.LEFT, 8, 4)).apply {
+        alignmentX = LEFT_ALIGNMENT
+        background = JBColor(Color(234, 246, 255), Color(40, 50, 60))
+        isOpaque = true
+        maximumSize = Dimension(Int.MAX_VALUE, 28)
+        add(cascadeBannerLabel)
+        add(linkButton("Dismiss") { isVisible = false })
+        isVisible = false
+    }
+    private var cascadeBannerShownThisSession = false
+
     private val safeScroll = JBScrollPane(safeTable)
     private val blockedScroll = JBScrollPane(blockedTable)
     private val chainScroll = JBScrollPane(conflictChainTree)
@@ -132,7 +153,7 @@ class PlanResultPanel : JPanel() {
     private val vulnScroll = JBScrollPane(vulnTable)
     private val stepsScroll = JBScrollPane(stepsArea)
 
-    private val safeSection = section(safeSeparator, batchBar, safeScroll)
+    private val safeSection = section(safeSeparator, batchBar, cascadeBanner, safeScroll)
     private val blockedSection = section(blockedSeparator, blockedScroll)
     private val chainSection = section(chainSeparator, chainScroll)
     private val inconclusiveSection = section(inconclusiveSeparator, inconclusiveScroll)
@@ -141,6 +162,17 @@ class PlanResultPanel : JPanel() {
 
     init {
         layout = BoxLayout(this, BoxLayout.Y_AXIS)
+
+        safeModel.onCascadeFired = cb@{ primary, peers ->
+            if (cascadeBannerShownThisSession || peers.isEmpty()) return@cb
+            val primaryName = safeModel.data.getOrNull(primary)?.packageName ?: return@cb
+            val peerNames = peers.mapNotNull { safeModel.data.getOrNull(it)?.packageName }
+            if (peerNames.isEmpty()) return@cb
+            cascadeBannerShownThisSession = true
+            cascadeBannerLabel.text = formatCascadeBanner(primaryName, peerNames)
+            cascadeBanner.isVisible = true
+            cascadeBanner.revalidate()
+        }
 
         blockedTable.selectionModel.addListSelectionListener { e ->
             if (e.valueIsAdjusting) return@addListSelectionListener
@@ -182,6 +214,8 @@ class PlanResultPanel : JPanel() {
     }
 
     fun update(plan: UpgradePlan) {
+        cascadeBannerShownThisSession = false
+        cascadeBanner.isVisible = false
         safeModel.data = plan.safeUpdates
         blockedModel.data = plan.blockedUpdates
         inconclusiveModel.data = plan.inconclusiveUpdates
@@ -238,6 +272,8 @@ class PlanResultPanel : JPanel() {
     }
 
     fun clear() {
+        cascadeBannerShownThisSession = false
+        cascadeBanner.isVisible = false
         safeModel.data = emptyList()
         blockedModel.data = emptyList()
         inconclusiveModel.data = emptyList()
@@ -295,6 +331,10 @@ class PlanResultPanel : JPanel() {
             }
         var selected: BooleanArray = BooleanArray(0)
 
+        /** Invoked when a single-row toggle cascaded to peers. First arg is the
+         * clicked row; second is the list of peer row indices that changed. */
+        var onCascadeFired: ((Int, List<Int>) -> Unit)? = null
+
         fun selectAll() {
             selected.fill(true)
             fireTableDataChanged()
@@ -336,6 +376,7 @@ class PlanResultPanel : JPanel() {
                     fireTableCellUpdated(row, col)
                 } else if (changed.isNotEmpty()) {
                     fireTableDataChanged()
+                    onCascadeFired?.invoke(row, changed.filter { it != row })
                 }
             }
         }
@@ -471,6 +512,26 @@ class PlanResultPanel : JPanel() {
         }
     }
 
+    private inner class PackageCellRenderer : DefaultTableCellRenderer() {
+        override fun getTableCellRendererComponent(
+            table: JTable, value: Any?, isSelected: Boolean, hasFocus: Boolean, row: Int, col: Int,
+        ): Component {
+            val comp = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, col)
+            val update = safeModel.data.getOrNull(row)
+            text = if (update?.groupId != null) {
+                "${value ?: ""}  (linked)"
+            } else {
+                value?.toString() ?: ""
+            }
+            font = if (update?.groupId != null) {
+                font.deriveFont(Font.ITALIC)
+            } else {
+                font.deriveFont(Font.PLAIN)
+            }
+            return comp
+        }
+    }
+
     private inner class LinkCellRenderer : DefaultTableCellRenderer() {
         override fun getTableCellRendererComponent(
             table: JTable, value: Any?, isSelected: Boolean, hasFocus: Boolean, row: Int, col: Int,
@@ -573,6 +634,18 @@ class PlanResultPanel : JPanel() {
             "Medium" -> JBColor(Color(200, 170, 50), Color(220, 190, 70))
             "Low" -> JBColor(Color(80, 180, 80), Color(100, 200, 100))
             else -> defaultColor
+        }
+
+        fun formatGroupTooltip(peers: List<String>): String {
+            val peerList = peers.joinToString(", ") { "<b>$it</b>" }
+            return "<html>Must update together with $peerList.<br>" +
+                "<small>The planner verified this set resolves as a unit; applying a subset would break the lockfile.</small></html>"
+        }
+
+        fun formatCascadeBanner(primary: String, peers: List<String>): String {
+            val also = peers.joinToString(", ") { "`$it`" }
+            val verb = if (peers.size == 1) "was" else "were"
+            return "<html>`$also` $verb also toggled because it must update together with <b>$primary</b>.</html>"
         }
 
         fun formatStalenessTooltip(pkg: String, links: PackageLinks): String? {

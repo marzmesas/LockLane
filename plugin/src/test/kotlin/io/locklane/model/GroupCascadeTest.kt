@@ -130,4 +130,19 @@ class GroupCascadeTest {
         assertFalse(selected[1])
         assertTrue(selected[2])
     }
+
+    @Test
+    fun `peersOf returns only peers in the same group`() {
+        val data = listOf(
+            update("a", "g1"),
+            update("b", "g1"),
+            update("c", "g1"),
+            update("d", "g2"),
+            update("e"),
+        )
+
+        assertEquals(listOf("b", "c"), GroupCascade.peersOf(data, 0))
+        assertEquals(emptyList<String>(), GroupCascade.peersOf(data, 3))
+        assertEquals(emptyList<String>(), GroupCascade.peersOf(data, 4))
+    }
 }
