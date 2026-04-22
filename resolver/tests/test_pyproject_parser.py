@@ -82,6 +82,38 @@ class TestPoetryParsing:
 
 
 # ---------------------------------------------------------------------------
+# PEP 735 [dependency-groups]
+# ---------------------------------------------------------------------------
+
+class TestPEP735Parsing:
+    def test_project_and_group_deps_discovered(self):
+        deps = parse_pyproject_dependencies(FIXTURES / "pyproject_pep735.toml")
+        names = {d.name.lower() for d in deps}
+        # project.dependencies
+        assert "fastapi" in names
+        assert "pydantic" in names
+        # dependency-groups.dev
+        assert "ruff" in names
+        assert "pytest" in names
+        # dependency-groups.typing
+        assert "pyright" in names
+        assert "pandas-stubs" in names
+
+    def test_include_group_reference_skipped(self):
+        # An `{include-group = "..."}` entry is a group reference, not a dep.
+        # Parser must not choke or emit a phantom dependency.
+        deps = parse_pyproject_dependencies(FIXTURES / "pyproject_pep735.toml")
+        names = {d.name.lower() for d in deps}
+        assert "include-group" not in names
+
+    def test_range_specifiers_preserved(self):
+        deps = parse_pyproject_dependencies(FIXTURES / "pyproject_pep735.toml")
+        by_name = {d.name.lower(): d for d in deps}
+        assert by_name["fastapi"].specifier == "~=0.128.8"
+        assert by_name["pyright"].specifier == "~=1.1.407"
+
+
+# ---------------------------------------------------------------------------
 # parse_manifest dispatch
 # ---------------------------------------------------------------------------
 

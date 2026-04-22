@@ -65,6 +65,17 @@ def _detect_sections(data: dict) -> list[tuple[str, list[str]]]:
                                 [dep_str],
                             ))
 
+    # PEP 735 [dependency-groups] (top-level, distinct from [project.optional-dependencies]).
+    # Entries may include cross-group references as {include-group = "..."} tables;
+    # those are not dep strings, so filter to plain strings.
+    dep_groups = data.get("dependency-groups", {})
+    if isinstance(dep_groups, dict):
+        for group_name, group_deps in dep_groups.items():
+            if isinstance(group_deps, list):
+                plain = [d for d in group_deps if isinstance(d, str)]
+                if plain:
+                    sections.append((f"dependency-groups.{group_name}", plain))
+
     return sections
 
 
