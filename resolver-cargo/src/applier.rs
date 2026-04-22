@@ -53,6 +53,7 @@ pub fn apply_plan(
             package: u.package.clone(),
             from_version: u.to_version.clone(),
             to_version: u.from_version.clone(),
+            group_id: None,
         })
         .collect();
 
@@ -105,10 +106,15 @@ fn extract_safe_updates(plan_data: &serde_json::Value) -> Result<Vec<SafeUpdate>
             .get("to_version")
             .and_then(|v| v.as_str())
             .ok_or("Missing to_version")?;
+        let group_id = item
+            .get("group_id")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
         updates.push(SafeUpdate {
             package: package.into(),
             from_version: from.into(),
             to_version: to.into(),
+            group_id,
         });
     }
     Ok(updates)

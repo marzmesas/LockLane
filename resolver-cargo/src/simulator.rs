@@ -114,6 +114,41 @@ pub fn simulate_candidate(
     }
 }
 
+/// Simulate a subset of safe updates applied together.
+///
+/// Copies the project to a temp directory, rewrites each update's version
+/// in the manifest, then runs `cargo metadata` to test combined resolution.
+/// Returns `true` if resolution succeeds. Dependencies not included in
+/// `updates` are left at their currently pinned version.
+pub fn simulate_combined(manifest_path: &Path, updates: &[SafeUpdate]) -> bool {
+    let temp_dir = match setup_temp_workspace(manifest_path) {
+        Ok(d) => d,
+        Err(_) => return false,
+    };
+    let temp_manifest = temp_dir.path().join("Cargo.toml");
+
+    for update in updates {
+        if rewrite_dependency(&temp_manifest, &update.package, &update.to_version).is_err() {
+            return false;
+        }
+    }
+
+    let output = Command::new("cargo")
+        .args([
+            "metadata",
+            "--format-version",
+            "1",
+            "--manifest-path",
+            &temp_manifest.to_string_lossy(),
+        ])
+        .output();
+
+    match output {
+        Ok(o) => o.status.success(),
+        Err(_) => false,
+    }
+}
+
 /// Set up a temporary workspace with Cargo.toml (and Cargo.lock if present).
 fn setup_temp_workspace(manifest_path: &Path) -> Result<TempDir, String> {
     let temp_dir = TempDir::new().map_err(|e| e.to_string())?;

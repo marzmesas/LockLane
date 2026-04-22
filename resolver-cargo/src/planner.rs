@@ -1,5 +1,6 @@
 //! Plan composition: candidate enumeration, batch simulation, compatibility check.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use crate::cargo_parser;
@@ -95,6 +96,7 @@ pub fn compose_upgrade_plan(
                         package: dep.name.clone(),
                         from_version: current_version.clone(),
                         to_version: target.clone(),
+                        group_id: None,
                     });
                     break;
                 }
@@ -125,6 +127,17 @@ pub fn compose_upgrade_plan(
             // Try to find a fallback suggestion from lower versions
             blocked.suggestion = find_fallback(manifest_path, &dep.name, &candidates);
             blocked_updates.push(blocked);
+        }
+    }
+
+    // Compute interdependency groups. Only meaningful when the full set
+    // resolves — if it doesn't, users fall back to sequential steps anyway.
+    if safe_updates.len() >= 2 && simulator::simulate_combined(manifest_path, &safe_updates) {
+        let group_ids = compute_groups(manifest_path, &safe_updates);
+        for update in safe_updates.iter_mut() {
+            if let Some(gid) = group_ids.get(&update.package) {
+                update.group_id = Some(gid.clone());
+            }
         }
     }
 
@@ -166,6 +179,141 @@ pub fn compose_upgrade_plan(
         inconclusive_updates,
         ordered_steps,
         error: None,
+    }
+}
+
+/// Assign interdependency group IDs to safe updates.
+///
+/// For each safe update, probes whether it resolves on its own (with every
+/// other dependency at its current pinned version). If not, greedy-adds peers
+/// from `safe_updates` in alphabetical order until resolution succeeds — those
+/// peers must move together.
+///
+/// The resulting (directed) peer relation is decomposed into strongly connected
+/// components: two packages share a group only when they mutually require each
+/// other (directly or transitively). Independent updates are omitted.
+fn compute_groups(
+    manifest_path: &Path,
+    safe_updates: &[SafeUpdate],
+) -> BTreeMap<String, String> {
+    if safe_updates.len() < 2 {
+        return BTreeMap::new();
+    }
+
+    let by_pkg: BTreeMap<String, SafeUpdate> = safe_updates
+        .iter()
+        .map(|u| (u.package.clone(), u.clone()))
+        .collect();
+    let nodes: Vec<String> = by_pkg.keys().cloned().collect();
+
+    let mut requires: BTreeMap<String, BTreeSet<String>> = nodes
+        .iter()
+        .map(|n| (n.clone(), BTreeSet::new()))
+        .collect();
+
+    for pkg in &nodes {
+        let solo = vec![by_pkg[pkg].clone()];
+        if simulator::simulate_combined(manifest_path, &solo) {
+            continue;
+        }
+
+        let mut current = solo;
+        for peer in &nodes {
+            if peer == pkg {
+                continue;
+            }
+            current.push(by_pkg[peer].clone());
+            requires.get_mut(pkg).unwrap().insert(peer.clone());
+            if simulator::simulate_combined(manifest_path, &current) {
+                break;
+            }
+        }
+    }
+
+    let sccs = tarjan_sccs(&requires, &nodes);
+
+    let mut group_ids = BTreeMap::new();
+    let mut counter = 0usize;
+    for component in sccs {
+        if component.len() < 2 {
+            continue;
+        }
+        counter += 1;
+        let gid = format!("g{counter}");
+        for pkg in component {
+            group_ids.insert(pkg, gid.clone());
+        }
+    }
+    group_ids
+}
+
+/// Tarjan's SCC. Returns components sorted by their lowest-named member.
+fn tarjan_sccs(
+    graph: &BTreeMap<String, BTreeSet<String>>,
+    nodes: &[String],
+) -> Vec<Vec<String>> {
+    let mut state = TarjanState::default();
+    for v in nodes {
+        if !state.indices.contains_key(v) {
+            strongconnect(v, graph, &mut state);
+        }
+    }
+    state.result.sort_by(|a, b| a[0].cmp(&b[0]));
+    state.result
+}
+
+#[derive(Default)]
+struct TarjanState {
+    indices: BTreeMap<String, usize>,
+    lowlink: BTreeMap<String, usize>,
+    on_stack: BTreeSet<String>,
+    stack: Vec<String>,
+    counter: usize,
+    result: Vec<Vec<String>>,
+}
+
+fn strongconnect(
+    v: &str,
+    graph: &BTreeMap<String, BTreeSet<String>>,
+    state: &mut TarjanState,
+) {
+    state.indices.insert(v.to_string(), state.counter);
+    state.lowlink.insert(v.to_string(), state.counter);
+    state.counter += 1;
+    state.stack.push(v.to_string());
+    state.on_stack.insert(v.to_string());
+
+    let neighbors: Vec<String> = graph
+        .get(v)
+        .map(|s| s.iter().cloned().collect())
+        .unwrap_or_default();
+
+    for w in neighbors {
+        if !state.indices.contains_key(&w) {
+            strongconnect(&w, graph, state);
+            let w_low = state.lowlink[&w];
+            let v_low = state.lowlink[v];
+            state.lowlink.insert(v.to_string(), v_low.min(w_low));
+        } else if state.on_stack.contains(&w) {
+            let w_idx = state.indices[&w];
+            let v_low = state.lowlink[v];
+            state.lowlink.insert(v.to_string(), v_low.min(w_idx));
+        }
+    }
+
+    if state.lowlink[v] == state.indices[v] {
+        let mut component = Vec::new();
+        loop {
+            let w = state.stack.pop().unwrap();
+            state.on_stack.remove(&w);
+            let done = w == v;
+            component.push(w);
+            if done {
+                break;
+            }
+        }
+        component.sort();
+        state.result.push(component);
     }
 }
 
@@ -211,4 +359,98 @@ fn is_dep_registry(doc: &toml::Value, name: &str) -> bool {
     }
     // Default to true if we can't determine
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_graph(edges: &[(&str, &[&str])]) -> BTreeMap<String, BTreeSet<String>> {
+        let mut g: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for (node, _) in edges {
+            g.entry((*node).into()).or_default();
+        }
+        for (node, targets) in edges {
+            for t in *targets {
+                g.entry((*t).into()).or_default();
+            }
+            let set = g.get_mut(*node).unwrap();
+            for t in *targets {
+                set.insert((*t).into());
+            }
+        }
+        g
+    }
+
+    fn nodes_sorted(g: &BTreeMap<String, BTreeSet<String>>) -> Vec<String> {
+        g.keys().cloned().collect()
+    }
+
+    #[test]
+    fn scc_single_node_is_singleton() {
+        let g = make_graph(&[("a", &[])]);
+        let sccs = tarjan_sccs(&g, &nodes_sorted(&g));
+        assert_eq!(sccs, vec![vec!["a".to_string()]]);
+    }
+
+    #[test]
+    fn scc_mutual_pair_is_one_component() {
+        let g = make_graph(&[("a", &["b"]), ("b", &["a"])]);
+        let sccs = tarjan_sccs(&g, &nodes_sorted(&g));
+        assert_eq!(sccs, vec![vec!["a".to_string(), "b".to_string()]]);
+    }
+
+    #[test]
+    fn scc_one_way_edge_yields_two_singletons() {
+        // a -> b but b does not require a: each is its own component.
+        let g = make_graph(&[("a", &["b"]), ("b", &[])]);
+        let sccs = tarjan_sccs(&g, &nodes_sorted(&g));
+        assert_eq!(
+            sccs,
+            vec![vec!["a".to_string()], vec!["b".to_string()]]
+        );
+    }
+
+    #[test]
+    fn scc_disjoint_pairs_stay_separate() {
+        // Greedy probe might have pulled {a,b} into c's requires; SCC must
+        // still separate them because a does not reach c.
+        let g = make_graph(&[
+            ("a", &["b"]),
+            ("b", &["a"]),
+            ("c", &["a", "b", "d"]),
+            ("d", &["a", "b", "c"]),
+        ]);
+        let sccs = tarjan_sccs(&g, &nodes_sorted(&g));
+        assert!(sccs.contains(&vec!["a".to_string(), "b".to_string()]));
+        assert!(sccs.contains(&vec!["c".to_string(), "d".to_string()]));
+        assert_eq!(sccs.len(), 2);
+    }
+
+    #[test]
+    fn scc_three_cycle_is_one_component() {
+        let g = make_graph(&[
+            ("a", &["b"]),
+            ("b", &["c"]),
+            ("c", &["a"]),
+        ]);
+        let sccs = tarjan_sccs(&g, &nodes_sorted(&g));
+        assert_eq!(
+            sccs,
+            vec![vec!["a".to_string(), "b".to_string(), "c".to_string()]]
+        );
+    }
+
+    #[test]
+    fn scc_ordering_is_deterministic_by_lowest_member() {
+        let g = make_graph(&[
+            ("z", &["y"]),
+            ("y", &["z"]),
+            ("a", &["b"]),
+            ("b", &["a"]),
+        ]);
+        let sccs = tarjan_sccs(&g, &nodes_sorted(&g));
+        assert_eq!(sccs[0][0], "a");
+        assert_eq!(sccs[1][0], "y");
+    }
 }
