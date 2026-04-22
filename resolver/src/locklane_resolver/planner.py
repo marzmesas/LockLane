@@ -15,6 +15,7 @@ from .simulator import create_modified_manifest, simulate_candidate
 
 
 _PINNED_RE = re.compile(r"^==(\d+\.\d+\.\d+)$")
+_SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 
 def _extract_pinned_version(specifier: str) -> str | None:
@@ -24,6 +25,23 @@ def _extract_pinned_version(specifier: str) -> str | None:
     """
     m = _PINNED_RE.match(specifier.strip())
     return m.group(1) if m else None
+
+
+def _current_version_for(dep: ParsedDependency) -> str | None:
+    """Pick the "current version" for a dep.
+
+    Prefers an exact pin (``==X.Y.Z``) in the manifest specifier; falls
+    back to ``dep.locked_version`` for range specifiers. Only returns
+    strict ``X.Y.Z`` semver so downstream bump enumeration stays well-
+    behaved.
+    """
+    pinned = _extract_pinned_version(dep.specifier)
+    if pinned is not None:
+        return pinned
+    locked = dep.locked_version
+    if locked is not None and _SEMVER_RE.match(locked):
+        return locked
+    return None
 
 
 def _find_fallback(
@@ -233,7 +251,7 @@ def compose_upgrade_plan(
     #    Try major first (highest jump), then minor, then patch.
     #    The first level that resolves safely wins.
     for dep in sorted(dependencies, key=lambda d: d.name.lower()):
-        current_version = _extract_pinned_version(dep.specifier)
+        current_version = _current_version_for(dep)
         if current_version is None:
             continue
 

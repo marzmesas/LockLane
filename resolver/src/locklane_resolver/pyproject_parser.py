@@ -253,11 +253,18 @@ def build_pyproject_replacement_line(
     stripped: str,
     package: str,
     target_version: str,
+    force_pin: bool = False,
 ) -> str:
     """Build a replacement line for a pyproject.toml dependency.
 
     Handles both PEP 621 array items and Poetry key-value pairs.
     Preserves the original line structure, only replacing the version.
+
+    When ``force_pin`` is ``True`` the operator is rewritten to ``==`` so
+    the resolver is forced to pick exactly ``target_version`` — used by
+    the simulator during candidate probing. When ``False`` (apply path)
+    the original operator (``~=``, ``>=``, ``^``, ``~``) is preserved so
+    the user's chosen versioning style survives the update.
     """
     # Poetry style: package = "^1.0.0" or package = {version = "^1.0.0", ...}
     poetry_simple = re.match(
@@ -267,7 +274,7 @@ def build_pyproject_replacement_line(
     )
     if poetry_simple:
         prefix, old_ver, suffix = poetry_simple.groups()
-        new_ver = _preserve_poetry_operator(old_ver, target_version)
+        new_ver = target_version if force_pin else _preserve_poetry_operator(old_ver, target_version)
         return f"{prefix}{new_ver}{suffix}"
 
     # Poetry inline table: package = {version = "^1.0.0", ...}
@@ -278,31 +285,32 @@ def build_pyproject_replacement_line(
     )
     if poetry_table:
         old_ver = poetry_table.group(2)
-        new_ver = _preserve_poetry_operator(old_ver, target_version)
+        new_ver = target_version if force_pin else _preserve_poetry_operator(old_ver, target_version)
         return (
             stripped[:poetry_table.start()]
             + poetry_table.group(1) + new_ver + poetry_table.group(3)
             + stripped[poetry_table.end():]
         )
 
-    # PEP 621 style: "package>=1.0.0" inside array
-    # Find the quoted dep string containing this package and replace the version
+    # PEP 621 style: "package~=1.0.0" inside array. Capture the operator
+    # separately so we can preserve it on the apply path.
     for quote in ('"', "'"):
         pattern = re.compile(
-            rf'({quote})({re.escape(package)}(?:\[[^\]]*\])?\s*[>=<~!=!]+\s*)([^{quote}]+?)({quote})',
+            rf'({quote})({re.escape(package)}(?:\[[^\]]*\])?)(\s*)([>=<~!]+)(\s*)([^{quote}]+?)({quote})',
             re.IGNORECASE,
         )
         m = pattern.search(stripped)
         if m:
+            q1, name_part, ws1, old_op, ws2, _old_ver, q2 = m.groups()
+            new_op = "==" if force_pin else old_op
             return (
                 stripped[:m.start()]
-                + m.group(1) + m.group(2).split("=")[0].split(">")[0].split("<")[0].split("~")[0].split("!")[0]
-                + f"=={target_version}"
-                + m.group(4)
+                + f"{q1}{name_part}{ws1}{new_op}{ws2}{target_version}{q2}"
                 + stripped[m.end():]
             )
 
-    # Fallback: try simpler PEP 621 match (e.g., "package" with no version)
+    # Fallback: PEP 621 entry with no version operator — always emit
+    # "package==target" since there's no original operator to preserve.
     for quote in ('"', "'"):
         simple_pattern = re.compile(
             rf'({quote})({re.escape(package)})({quote})',

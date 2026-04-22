@@ -210,6 +210,32 @@ class TestPEP621Surgery:
         assert "2.32.0" in result
         assert result.endswith(",") or result.endswith('",')
 
+    def test_preserves_tilde_equals_operator_on_apply(self):
+        # Apply path (default): user's ~= style must survive.
+        result = build_pyproject_replacement_line(
+            '"fastapi~=0.128.8"', "fastapi", "0.130.0",
+        )
+        assert result == '"fastapi~=0.130.0"'
+
+    def test_preserves_gte_operator_on_apply(self):
+        result = build_pyproject_replacement_line(
+            '"starlette>=0.40.0"', "starlette", "0.41.0",
+        )
+        assert result == '"starlette>=0.41.0"'
+
+    def test_force_pin_rewrites_range_to_exact(self):
+        # Simulator path: force_pin=True flattens any operator to ==.
+        result = build_pyproject_replacement_line(
+            '"fastapi~=0.128.8"', "fastapi", "0.130.0", force_pin=True,
+        )
+        assert result == '"fastapi==0.130.0"'
+
+    def test_force_pin_rewrites_gte_to_exact(self):
+        result = build_pyproject_replacement_line(
+            '"starlette>=0.40.0"', "starlette", "0.41.0", force_pin=True,
+        )
+        assert result == '"starlette==0.41.0"'
+
 
 # ---------------------------------------------------------------------------
 # Line surgery — Poetry

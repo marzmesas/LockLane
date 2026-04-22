@@ -289,6 +289,114 @@ class SimulateCombinedTests(unittest.TestCase):
             self.assertFalse(ok)
 
 
+class LockedVersionFallbackTests(unittest.TestCase):
+    """Range specifiers use ParsedDependency.locked_version as the current version."""
+
+    @mock.patch("locklane_resolver.planner.enumerate_upgrade_candidates")
+    @mock.patch("locklane_resolver.planner.simulate_candidate")
+    @mock.patch("locklane_resolver.planner._simulate_combined", return_value=True)
+    def test_ranged_spec_with_locked_version_enumerated(
+        self,
+        _mock_combined: mock.Mock,
+        mock_sim: mock.Mock,
+        mock_enum: mock.Mock,
+    ) -> None:
+        # With a range specifier and no uv.lock, the dep would be skipped.
+        # With locked_version set, it should flow through enumerate/simulate.
+        mock_enum.return_value = {"patch": ["0.128.9"]}
+        mock_sim.return_value = SimulationResult(result="SAFE_NOW", explanation="ok")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "pyproject.toml"
+            manifest.write_text(
+                "[project]\nname = \"x\"\nversion = \"0\"\n"
+                "dependencies = [\"fastapi~=0.128.8\"]\n",
+                encoding="utf-8",
+            )
+            deps = [
+                ParsedDependency(
+                    name="fastapi",
+                    specifier="~=0.128.8",
+                    raw_line="fastapi~=0.128.8",
+                    line_number=4,
+                    locked_version="0.128.8",
+                ),
+            ]
+
+            result = compose_upgrade_plan(manifest, deps, "uv")
+
+            self.assertEqual(len(result["safe_updates"]), 1)
+            self.assertEqual(result["safe_updates"][0]["from_version"], "0.128.8")
+            self.assertEqual(result["safe_updates"][0]["to_version"], "0.128.9")
+            mock_enum.assert_called_once()
+            self.assertEqual(mock_enum.call_args.args[:2], ("fastapi", "0.128.8"))
+
+    @mock.patch("locklane_resolver.planner.enumerate_upgrade_candidates")
+    @mock.patch("locklane_resolver.planner.simulate_candidate")
+    def test_ranged_spec_without_locked_version_is_skipped(
+        self,
+        mock_sim: mock.Mock,
+        mock_enum: mock.Mock,
+    ) -> None:
+        # No pin and no lockfile → planner has no current version, skips.
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "pyproject.toml"
+            manifest.write_text(
+                "[project]\nname=\"x\"\nversion=\"0\"\ndependencies=[\"fastapi~=0.128.8\"]\n",
+                encoding="utf-8",
+            )
+            deps = [
+                ParsedDependency(
+                    name="fastapi",
+                    specifier="~=0.128.8",
+                    raw_line="fastapi~=0.128.8",
+                    line_number=4,
+                    locked_version=None,
+                ),
+            ]
+
+            result = compose_upgrade_plan(manifest, deps, "uv")
+
+            self.assertEqual(result["safe_updates"], [])
+            mock_enum.assert_not_called()
+            mock_sim.assert_not_called()
+
+    @mock.patch("locklane_resolver.planner.enumerate_upgrade_candidates")
+    @mock.patch("locklane_resolver.planner.simulate_candidate")
+    @mock.patch("locklane_resolver.planner._simulate_combined", return_value=True)
+    def test_pinned_spec_ignores_locked_version(
+        self,
+        _mock_combined: mock.Mock,
+        mock_sim: mock.Mock,
+        mock_enum: mock.Mock,
+    ) -> None:
+        # When the manifest has an exact pin, it wins over the lock even if
+        # they disagree — the user's declared intent is the source of truth.
+        mock_enum.return_value = {"patch": ["1.0.1"]}
+        mock_sim.return_value = SimulationResult(result="SAFE_NOW", explanation="ok")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "pyproject.toml"
+            manifest.write_text(
+                "[project]\nname=\"x\"\nversion=\"0\"\ndependencies=[\"pkg==1.0.0\"]\n",
+                encoding="utf-8",
+            )
+            deps = [
+                ParsedDependency(
+                    name="pkg",
+                    specifier="==1.0.0",
+                    raw_line="pkg==1.0.0",
+                    line_number=4,
+                    locked_version="9.9.9",
+                ),
+            ]
+
+            result = compose_upgrade_plan(manifest, deps, "uv")
+
+            self.assertEqual(result["safe_updates"][0]["from_version"], "1.0.0")
+            self.assertEqual(mock_enum.call_args.args[:2], ("pkg", "1.0.0"))
+
+
 class ComputeGroupsTests(unittest.TestCase):
     """Tests for _compute_groups()."""
 
