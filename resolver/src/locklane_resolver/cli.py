@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shlex
 import shutil
 import subprocess
@@ -52,9 +53,50 @@ def _read_exclude_newer_from_toml(manifest: Path) -> str | None:
         return None
 
 
+_COMPILED_LINE_RE = re.compile(
+    r"^\s*([A-Za-z0-9_.\-]+)\s*==\s*(\d+\.\d+\.\d+[A-Za-z0-9_.\-+]*)"
+)
+
+
+def _read_compiled_locks(path: Path) -> dict[str, str]:
+    """Parse a pip-compiled requirements.txt into a {name_lower: version} map.
+
+    Accepts any line that starts with ``name==X.Y.Z[pre/post/build]``; the
+    rest of the line (``\\``, ``# via ...`` comments) is ignored. Missing
+    file returns an empty dict.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (FileNotFoundError, OSError):
+        return {}
+    result: dict[str, str] = {}
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith("-"):
+            continue
+        m = _COMPILED_LINE_RE.match(stripped)
+        if m:
+            name_lower = m.group(1).lower()
+            # Only keep the base X.Y.Z so the planner's strict semver check
+            # accepts it; pre-release suffixes fall through to None elsewhere.
+            result.setdefault(name_lower, m.group(2))
+    return result
+
+
 def parse_requirements(manifest_path: Path) -> list[ParsedDependency]:
-    """Parse basic dependency spec lines from a requirements-style file."""
+    """Parse basic dependency spec lines from a requirements-style file.
+
+    When handed a ``requirements.in`` with a sibling compiled ``.txt``
+    (same stem, e.g. ``requirements.in`` → ``requirements.txt``), each
+    dep is annotated with ``locked_version`` from that compiled file.
+    This lets the planner process ranged ``.in`` specs (``~=``, ``>=``)
+    the same way it handles ``pyproject.toml`` + ``uv.lock``.
+    """
     dependencies: list[ParsedDependency] = []
+
+    locks: dict[str, str] = {}
+    if manifest_path.suffix == ".in":
+        locks = _read_compiled_locks(manifest_path.with_suffix(".txt"))
 
     for line_number, raw in enumerate(manifest_path.read_text(encoding="utf-8").splitlines(), start=1):
         stripped = raw.strip()
@@ -87,6 +129,7 @@ def parse_requirements(manifest_path: Path) -> list[ParsedDependency]:
                 specifier=specifier,
                 raw_line=stripped,
                 line_number=line_number,
+                locked_version=locks.get(name.lower()),
             )
         )
 
