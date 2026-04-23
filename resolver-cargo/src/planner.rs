@@ -40,7 +40,7 @@ pub fn compose_upgrade_plan(
     let doc: toml::Value = content.parse().unwrap_or(toml::Value::Table(Default::default()));
 
     for dep in deps.iter() {
-        let current_version = match cargo_parser::extract_pinned_version(&dep.specifier) {
+        let current_version = match current_version_for(dep) {
             Some(v) => v,
             None => continue,
         };
@@ -180,6 +180,25 @@ pub fn compose_upgrade_plan(
         ordered_steps,
         error: None,
     }
+}
+
+/// Pick the "current version" for a dep.
+///
+/// Prefers a version parsed directly from the manifest specifier (`=1.2.3`,
+/// `1.2.3`, `^1.2.3`, `~1.2.3`); falls back to `dep.locked_version` from
+/// Cargo.lock for ranged specs that cargo_parser::extract_pinned_version
+/// can't handle (`"1"`, `"~1.0"`, `">=1.0, <2.0"`). Only returns strict
+/// X.Y.Z semver so downstream bump enumeration stays well-behaved.
+fn current_version_for(dep: &ParsedDependency) -> Option<String> {
+    if let Some(v) = cargo_parser::extract_pinned_version(&dep.specifier) {
+        return Some(v);
+    }
+    if let Some(locked) = &dep.locked_version {
+        if semver::Version::parse(locked).is_ok() {
+            return Some(locked.clone());
+        }
+    }
+    None
 }
 
 /// Assign interdependency group IDs to safe updates.
@@ -439,6 +458,42 @@ mod tests {
             sccs,
             vec![vec!["a".to_string(), "b".to_string(), "c".to_string()]]
         );
+    }
+
+    fn dep(name: &str, spec: &str, locked: Option<&str>) -> ParsedDependency {
+        ParsedDependency {
+            name: name.into(),
+            specifier: spec.into(),
+            raw_line: String::new(),
+            line_number: 0,
+            locked_version: locked.map(String::from),
+        }
+    }
+
+    #[test]
+    fn current_version_prefers_spec_pin() {
+        let d = dep("serde", "=1.0.200", Some("9.9.9"));
+        assert_eq!(current_version_for(&d), Some("1.0.200".into()));
+    }
+
+    #[test]
+    fn current_version_falls_back_to_locked_for_range() {
+        // "1" is a valid cargo spec but parses to 1.0.0 via extract_pinned_version
+        // stripping. Use a spec that extract_pinned_version can't handle.
+        let d = dep("serde", ">=1.0, <2.0", Some("1.0.210"));
+        assert_eq!(current_version_for(&d), Some("1.0.210".into()));
+    }
+
+    #[test]
+    fn current_version_none_when_spec_ranged_and_no_lock() {
+        let d = dep("serde", ">=1.0, <2.0", None);
+        assert_eq!(current_version_for(&d), None);
+    }
+
+    #[test]
+    fn current_version_rejects_non_semver_lock() {
+        let d = dep("serde", ">=1.0, <2.0", Some("not-a-version"));
+        assert_eq!(current_version_for(&d), None);
     }
 
     #[test]

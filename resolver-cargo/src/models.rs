@@ -22,6 +22,8 @@ pub struct ParsedDependency {
     pub specifier: String,
     pub raw_line: String,
     pub line_number: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locked_version: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

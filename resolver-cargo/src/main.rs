@@ -1,3 +1,4 @@
+mod cargo_lock;
 mod cargo_parser;
 mod cargo_resolver;
 mod crates_io;

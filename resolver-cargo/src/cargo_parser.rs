@@ -6,9 +6,15 @@
 
 use std::path::Path;
 
+use crate::cargo_lock::parse_cargo_lock;
 use crate::models::ParsedDependency;
 
 /// Parse all dependencies from a Cargo.toml file.
+///
+/// When a sibling `Cargo.lock` is present, each dependency is annotated
+/// with `locked_version` so callers can recover the current version for
+/// range specifiers like `serde = "1"` (which Cargo resolves to e.g.
+/// `1.0.210` in the lockfile).
 pub fn parse_cargo_toml(manifest_path: &Path) -> Result<Vec<ParsedDependency>, String> {
     let content = std::fs::read_to_string(manifest_path)
         .map_err(|e| format!("Failed to read {}: {}", manifest_path.display(), e))?;
@@ -18,6 +24,10 @@ pub fn parse_cargo_toml(manifest_path: &Path) -> Result<Vec<ParsedDependency>, S
         .map_err(|e| format!("Failed to parse TOML: {e}"))?;
 
     let lines: Vec<&str> = content.lines().collect();
+    let locks = manifest_path
+        .parent()
+        .map(|p| parse_cargo_lock(&p.join("Cargo.lock")))
+        .unwrap_or_default();
     let mut deps = Vec::new();
 
     for section in &["dependencies", "dev-dependencies", "build-dependencies"] {
@@ -30,6 +40,7 @@ pub fn parse_cargo_toml(manifest_path: &Path) -> Result<Vec<ParsedDependency>, S
                     specifier,
                     raw_line,
                     line_number,
+                    locked_version: locks.get(name).cloned(),
                 });
             }
         }
@@ -49,6 +60,7 @@ pub fn parse_cargo_toml(manifest_path: &Path) -> Result<Vec<ParsedDependency>, S
                 specifier,
                 raw_line,
                 line_number,
+                locked_version: locks.get(name).cloned(),
             });
         }
     }
