@@ -120,7 +120,7 @@ fn extract_safe_updates(plan_data: &serde_json::Value) -> Result<Vec<SafeUpdate>
     Ok(updates)
 }
 
-/// Rewrite a dependency version in the document.
+/// Rewrite a dependency version in the document, preserving the user's operator.
 fn rewrite_dep(
     doc: &mut toml_edit::DocumentMut,
     package: &str,
@@ -129,30 +129,12 @@ fn rewrite_dep(
     for section in &["dependencies", "dev-dependencies", "build-dependencies"] {
         if let Some(table) = doc.get_mut(section).and_then(|v| v.as_table_like_mut()) {
             if let Some(dep) = table.get_mut(package) {
-                rewrite_dep_value(dep, target_version);
+                crate::cargo_parser::rewrite_dep_value(dep, target_version, /*force_pin=*/ false);
                 return Ok(());
             }
         }
     }
     Err(format!("Package '{package}' not found in Cargo.toml"))
-}
-
-/// Rewrite the version in a dependency value (handles string and table forms).
-fn rewrite_dep_value(item: &mut toml_edit::Item, target_version: &str) {
-    match item {
-        toml_edit::Item::Value(toml_edit::Value::String(s)) => {
-            *s = toml_edit::Formatted::new(format!("={target_version}"));
-        }
-        toml_edit::Item::Value(toml_edit::Value::InlineTable(t)) => {
-            if let Some(v) = t.get_mut("version") {
-                *v = toml_edit::Value::String(toml_edit::Formatted::new(format!("={target_version}")));
-            }
-        }
-        toml_edit::Item::Table(t) => {
-            t.insert("version", toml_edit::value(format!("={target_version}")));
-        }
-        _ => {}
-    }
 }
 
 /// Build a simple unified diff between two strings.

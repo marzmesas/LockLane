@@ -146,6 +146,88 @@ fn find_dep_line(name: &str, section: &str, lines: &[&str]) -> Option<usize> {
     None
 }
 
+/// Render a new version string for Cargo, preserving the user's operator.
+///
+/// Cargo accepts several forms: `"1.0"` (implicit caret), `"^1.0"`,
+/// `"~1.0"`, `"=1.0.200"`, and compound ranges like `">=1.0, <2.0"`. On
+/// the apply path we keep whichever style the user chose so accepting an
+/// update doesn't silently flatten `serde = "1"` into `serde = "=1.0.250"`.
+/// Compound ranges and wildcards fall back to a bare version — the
+/// original expression is too loose to faithfully preserve.
+pub fn preserve_cargo_operator(old: &str, new_version: &str) -> String {
+    let trimmed = old.trim();
+    if trimmed.is_empty() || trimmed == "*" || trimmed.contains(',') {
+        return new_version.to_string();
+    }
+    if trimmed.starts_with('=') {
+        return format!("={new_version}");
+    }
+    if trimmed.starts_with('^') {
+        return format!("^{new_version}");
+    }
+    if trimmed.starts_with('~') {
+        return format!("~{new_version}");
+    }
+    if trimmed.starts_with(">=")
+        || trimmed.starts_with("<=")
+        || trimmed.starts_with('>')
+        || trimmed.starts_with('<')
+    {
+        return new_version.to_string();
+    }
+    // Bare: "1", "1.0", "1.0.200" — keep bare (caret is implicit in Cargo).
+    new_version.to_string()
+}
+
+/// Rewrite a dependency's version in place.
+///
+/// Handles the three toml_edit shapes: simple string value, inline table,
+/// and full table. When `force_pin` is true the written version is always
+/// `=X.Y.Z` (used by the simulator to force the resolver onto the exact
+/// candidate under test). When false the user's operator is preserved via
+/// `preserve_cargo_operator` (used by the applier).
+pub fn rewrite_dep_value(
+    item: &mut toml_edit::Item,
+    target_version: &str,
+    force_pin: bool,
+) {
+    match item {
+        toml_edit::Item::Value(toml_edit::Value::String(s)) => {
+            let new = if force_pin {
+                format!("={target_version}")
+            } else {
+                preserve_cargo_operator(s.value(), target_version)
+            };
+            *s = toml_edit::Formatted::new(new);
+        }
+        toml_edit::Item::Value(toml_edit::Value::InlineTable(t)) => {
+            if let Some(v) = t.get_mut("version") {
+                let old = v.as_str().unwrap_or("").to_string();
+                let new = if force_pin {
+                    format!("={target_version}")
+                } else {
+                    preserve_cargo_operator(&old, target_version)
+                };
+                *v = toml_edit::Value::String(toml_edit::Formatted::new(new));
+            }
+        }
+        toml_edit::Item::Table(t) => {
+            let old = t
+                .get("version")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let new = if force_pin {
+                format!("={target_version}")
+            } else {
+                preserve_cargo_operator(&old, target_version)
+            };
+            t.insert("version", toml_edit::value(new));
+        }
+        _ => {}
+    }
+}
+
 /// Extract the pinned version from a Cargo version specifier.
 ///
 /// Returns Some(version) for exact pins (`=X.Y.Z`) or simple semver
@@ -204,6 +286,92 @@ mod tests {
         assert_eq!(extract_pinned_version(">=1.0, <2.0"), None);
         assert_eq!(extract_pinned_version("*"), None);
         assert_eq!(extract_pinned_version(""), None);
+    }
+
+    #[test]
+    fn test_preserve_cargo_operator() {
+        // Caret (explicit and implicit).
+        assert_eq!(preserve_cargo_operator("^1.0", "1.0.250"), "^1.0.250");
+        assert_eq!(preserve_cargo_operator("1.0", "1.0.250"), "1.0.250");
+        assert_eq!(preserve_cargo_operator("1", "1.0.250"), "1.0.250");
+
+        // Tilde.
+        assert_eq!(preserve_cargo_operator("~1.0", "1.0.250"), "~1.0.250");
+        assert_eq!(preserve_cargo_operator("~1.0.200", "1.0.250"), "~1.0.250");
+
+        // Exact pin.
+        assert_eq!(preserve_cargo_operator("=1.0.200", "1.0.250"), "=1.0.250");
+
+        // Compound range and wildcard fall back to bare.
+        assert_eq!(preserve_cargo_operator(">=1.0, <2.0", "1.5.0"), "1.5.0");
+        assert_eq!(preserve_cargo_operator("*", "1.5.0"), "1.5.0");
+
+        // Single-sided comparators also fall back to bare.
+        assert_eq!(preserve_cargo_operator(">=1.0", "1.5.0"), "1.5.0");
+
+        // Whitespace is tolerated.
+        assert_eq!(preserve_cargo_operator("  ^1.0  ", "1.0.250"), "^1.0.250");
+    }
+
+    #[test]
+    fn test_rewrite_dep_value_preserves_operator() {
+        let mut doc: toml_edit::DocumentMut = r#"
+[dependencies]
+serde = "1.0"
+tokio = "~1.0"
+anyhow = "=1.0.75"
+"#
+        .parse()
+        .unwrap();
+
+        for pkg in ["serde", "tokio", "anyhow"] {
+            let item = doc["dependencies"].get_mut(pkg).unwrap();
+            rewrite_dep_value(item, "1.0.250", /*force_pin=*/ false);
+        }
+
+        let out = doc.to_string();
+        assert!(out.contains("serde = \"1.0.250\""), "got: {out}");
+        assert!(out.contains("tokio = \"~1.0.250\""), "got: {out}");
+        assert!(out.contains("anyhow = \"=1.0.250\""), "got: {out}");
+    }
+
+    #[test]
+    fn test_rewrite_dep_value_force_pin_overrides_operator() {
+        let mut doc: toml_edit::DocumentMut = r#"
+[dependencies]
+serde = "^1.0"
+tokio = { version = "~1.0", features = ["macros"] }
+"#
+        .parse()
+        .unwrap();
+
+        let serde_item = doc["dependencies"].get_mut("serde").unwrap();
+        rewrite_dep_value(serde_item, "1.0.250", /*force_pin=*/ true);
+        let tokio_item = doc["dependencies"].get_mut("tokio").unwrap();
+        rewrite_dep_value(tokio_item, "1.40.0", /*force_pin=*/ true);
+
+        let out = doc.to_string();
+        assert!(out.contains("serde = \"=1.0.250\""), "got: {out}");
+        assert!(out.contains("version = \"=1.40.0\""), "got: {out}");
+        // Features preserved in inline table.
+        assert!(out.contains("\"macros\""), "got: {out}");
+    }
+
+    #[test]
+    fn test_rewrite_dep_value_inline_table_preserves_operator() {
+        let mut doc: toml_edit::DocumentMut = r#"
+[dependencies]
+tokio = { version = "~1.0", features = ["macros"] }
+"#
+        .parse()
+        .unwrap();
+
+        let item = doc["dependencies"].get_mut("tokio").unwrap();
+        rewrite_dep_value(item, "1.40.0", /*force_pin=*/ false);
+
+        let out = doc.to_string();
+        assert!(out.contains("version = \"~1.40.0\""), "got: {out}");
+        assert!(out.contains("\"macros\""), "got: {out}");
     }
 
     #[test]

@@ -204,23 +204,13 @@ fn rewrite_dependency(manifest_path: &Path, package: &str, target_version: &str)
     std::fs::write(manifest_path, doc.to_string()).map_err(|e| e.to_string())
 }
 
-/// Rewrite the version in a dependency value (handles both string and table forms).
+/// Rewrite the version in a dependency value during simulation.
+///
+/// Always pins to `=target_version` so `cargo metadata` is forced to
+/// select exactly the candidate being probed. Apply-path rewriting
+/// lives in the applier and preserves the user's operator.
 fn rewrite_dep_value(item: &mut toml_edit::Item, target_version: &str) {
-    match item {
-        toml_edit::Item::Value(toml_edit::Value::String(s)) => {
-            // Simple string: serde = "1.0" -> serde = "=1.0.200"
-            *s = toml_edit::Formatted::new(format!("={target_version}"));
-        }
-        toml_edit::Item::Value(toml_edit::Value::InlineTable(t)) => {
-            if let Some(v) = t.get_mut("version") {
-                *v = toml_edit::Value::String(toml_edit::Formatted::new(format!("={target_version}")));
-            }
-        }
-        toml_edit::Item::Table(t) => {
-            t.insert("version", toml_edit::value(format!("={target_version}")));
-        }
-        _ => {}
-    }
+    crate::cargo_parser::rewrite_dep_value(item, target_version, /*force_pin=*/ true);
 }
 
 /// Check if cargo metadata JSON output contains the target version of a package.
